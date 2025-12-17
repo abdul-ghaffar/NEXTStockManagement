@@ -14,6 +14,24 @@ export async function POST(request: Request, context: { params: any }) {
             return NextResponse.json({ message: 'closeOrder not available' }, { status: 500 });
         }
 
+        // verify JWT token from cookie
+        const cookieHeader = request.headers.get("cookie") || "";
+        const tokenPair = cookieHeader.split(";").map(s => s.trim()).find(s => s.startsWith("ta_token="));
+        let user: any = null;
+        if (tokenPair) {
+            const token = tokenPair.split("=").slice(1).join("=");
+            try {
+                const { verifyToken } = await import("@/lib/jwt");
+                user = verifyToken(token);
+            } catch (err) {
+                console.warn("Failed to verify token", err);
+            }
+        }
+
+        if (!user || !user.IsAdmin) {
+            return NextResponse.json({ message: 'Forbidden: admin required' }, { status: 403 });
+        }
+
         const result = await closeOrder(orderId);
         return NextResponse.json(result);
     } catch (err) {

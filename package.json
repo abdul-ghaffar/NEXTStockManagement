@@ -23,6 +23,7 @@
     "autoprefixer": "^10.4.22",
     "flatpickr": "^4.6.13",
     "mssql": "^12.2.0",
+  "jsonwebtoken": "^9.0.0",
     "next": "16.0.10",
     "react": "^19.2.0",
     "react-apexcharts": "^1.8.0",
@@ -46,6 +47,9 @@
     "tailwindcss": "^4.1.17",
     "typescript": "^5.9.3"
   },
+  "peerDependencies": {},
+  "optionalDependencies": {},
+  "engines": {},
   "overrides": {
     "@react-jvectormap/core": {
       "react": "^16.8.0 || ^17 || ^18 || ^19",
