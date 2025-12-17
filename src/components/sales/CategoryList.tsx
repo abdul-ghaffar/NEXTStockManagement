@@ -13,9 +13,9 @@ export default function CategoryList({ categories, onSelect }: { categories: Cat
                     key={c.id}
                     onClick={() => onSelect(c)}
                     title={c.name}
-                    className="h-16 px-3 rounded-lg border bg-sky-50 dark:bg-sky-900/40 shadow-sm text-left flex items-center hover:scale-[1.01] transition-all"
+                    className="min-h-16 px-3 rounded-lg border bg-sky-50 dark:bg-sky-900/40 shadow-sm text-left flex items-start py-2 hover:scale-[1.01] transition-all"
                 >
-                    <div className="text-sm font-medium truncate">{c.name}</div>
+                    <div className="text-sm font-medium break-words whitespace-normal">{c.name}</div>
                 </button>
             ))}
         </div>

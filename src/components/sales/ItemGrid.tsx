@@ -9,8 +9,8 @@ export default function ItemGrid({ items, onAdd }: { items: Item[]; onAdd: (it: 
             {items.map((it) => (
                 <div key={it.id} className="border p-3 rounded-lg flex flex-col justify-between hover:shadow transition bg-amber-50 dark:bg-amber-900/40">
                     <div className="min-h-12">
-                        <div className="font-medium text-sm truncate" title={it.itemName}>{it.itemName}</div>
-                        <div className="text-xs text-gray-500 truncate" title={it.itemCode}>{it.itemCode}</div>
+                        <div className="font-medium text-sm wrap-break-word whitespace-normal" title={it.itemName}>{it.itemName}</div>
+                        <div className="text-xs text-gray-500 wrap-break-word whitespace-normal" title={it.itemCode}>{it.itemCode}</div>
                     </div>
                     <div className="mt-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
                         <div className="font-bold">{Number(it.price).toFixed(2)}</div>
