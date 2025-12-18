@@ -189,3 +189,87 @@ export async function closeOrder(orderId: number) {
         throw err;
     }
 }
+
+export async function getSales(page: number = 1, limit: number = 10, searchId?: string, orderType?: string, status?: string) {
+    const pool = await getPool();
+    const offset = (page - 1) * limit;
+
+    let query = `
+        SELECT [ID], [ClientName], [SaleDate], [TotalAmount], [OrderType], [PhoneNo], [DeliveryAddress], [Closed]
+        FROM [dbo].[Sale]
+        WHERE 1=1
+    `;
+    let countQuery = `SELECT COUNT(*) as Total FROM [dbo].[Sale] WHERE 1=1`;
+
+    const request = pool.request();
+    const countRequest = pool.request();
+
+    if (searchId) {
+        request.input('SearchId', sql.BigInt, searchId);
+        countRequest.input('SearchId', sql.BigInt, searchId);
+        query += ` AND ID = @SearchId`;
+        countQuery += ` AND ID = @SearchId`;
+    }
+
+    if (orderType && orderType !== 'All') {
+        request.input('OrderType', sql.NVarChar(50), orderType);
+        countRequest.input('OrderType', sql.NVarChar(50), orderType);
+        query += ` AND OrderType = @OrderType`;
+        countQuery += ` AND OrderType = @OrderType`;
+    }
+
+    if (status && status !== 'All') {
+        const isClosed = status === 'Closed' ? 1 : 0;
+        request.input('IsClosed', sql.Bit, isClosed);
+        countRequest.input('IsClosed', sql.Bit, isClosed);
+        query += ` AND Closed = @IsClosed`;
+        countQuery += ` AND Closed = @IsClosed`;
+    }
+
+    query += ` ORDER BY ID DESC OFFSET @Offset ROWS FETCH NEXT @Limit ROWS ONLY`;
+    request.input('Offset', sql.Int, offset);
+    request.input('Limit', sql.Int, limit);
+
+    const result = await request.query(query);
+    const countResult = await countRequest.query(countQuery);
+
+    return {
+        data: result.recordset,
+        total: countResult.recordset[0].Total,
+        page,
+        totalPages: Math.ceil(countResult.recordset[0].Total / limit)
+    };
+}
+
+export async function getOrder(id: number) {
+    const pool = await getPool();
+
+    // Get Sale
+    const saleRes = await pool.request()
+        .input('ID', sql.BigInt, id)
+        .query(`SELECT * FROM [dbo].[Sale] WHERE ID = @ID`);
+
+    const sale = saleRes.recordset[0];
+    if (!sale) return null;
+
+    // Get Items
+    const itemsRes = await pool.request()
+        .input('SaleID', sql.BigInt, id)
+        .query(`
+            SELECT SI.ItemCode, SI.Qty, SI.SalePrice as Price, P.ItemName, P.ID as ProductID 
+            FROM [dbo].[Sale_Item] SI
+            JOIN [dbo].[Product] P ON SI.ItemCode = P.ItemCode
+            WHERE SI.SaleID = @SaleID
+        `);
+
+    return {
+        sale,
+        items: itemsRes.recordset.map(r => ({
+            id: r.ProductID,
+            itemCode: r.ItemCode,
+            itemName: r.ItemName,
+            price: r.Price,
+            qty: r.Qty
+        }))
+    };
+}

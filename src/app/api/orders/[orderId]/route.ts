@@ -1,31 +1,23 @@
-import { NextResponse } from "next/server";
-import { getPool } from "@/db/mssql";
+import { NextResponse } from 'next/server';
+import { getOrder } from '@/db/orders';
 
-export async function GET(request: Request, context: { params: any }) {
+export async function GET(
+    request: Request,
+    { params }: { params: { orderId: string } }
+) {
     try {
-        // Next.js may provide params as a Promise in some runtimes; `await` handles both Promise and plain object.
-        const params = await context.params;
-        const orderId = parseInt(params.orderId, 10);
-        if (Number.isNaN(orderId)) {
-            return NextResponse.json({ message: 'Invalid order id' }, { status: 400 });
+        const orderId = parseInt(params.orderId);
+        if (isNaN(orderId)) {
+            return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
         }
 
-        const pool = await getPool();
+        const data = await getOrder(orderId);
+        if (!data) {
+            return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+        }
 
-        const orderRes = await pool.request().input('orderId', orderId).query(`
-            SELECT * FROM [dbo].[Sale] WHERE ID = @orderId
-        `);
-
-        const itemsRes = await pool.request().input('orderId', orderId).query(`
-            SELECT si.*, p.ItemName, p.ID as prodID
-            FROM [dbo].[Sale_Item] si
-            LEFT JOIN [dbo].[Product] p ON p.ItemCode = si.ItemCode
-            WHERE si.SaleID = @orderId
-        `);
-
-        return NextResponse.json({ order: orderRes.recordset[0] || null, items: itemsRes.recordset || [] });
-    } catch (err) {
-        console.error('Order detail API error:', err);
-        return NextResponse.json({ message: 'Failed to load order' }, { status: 500 });
+        return NextResponse.json(data);
+    } catch (error: any) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

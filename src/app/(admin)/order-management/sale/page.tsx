@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Modal, ConfirmationModal } from "@/components/ui/modal";
 import TableGrid from "@/components/sales/TableGrid";
 import CategoryList from "@/components/sales/CategoryList";
@@ -12,6 +13,9 @@ type Category = { id: number; name: string };
 type Item = { id: number; itemCode: string; itemName: string; price: number };
 
 export default function SalePage() {
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const [isAdmin, setIsAdmin] = useState(false);
     const [step, setStep] = useState<"tables" | "items">("tables");
     const [tables, setTables] = useState<Table[]>([]);
     const [selectedTable, setSelectedTable] = useState<Table | null>(null);
@@ -25,6 +29,7 @@ export default function SalePage() {
     const [customerPhone, setCustomerPhone] = useState('');
     const [deliveryAddress, setDeliveryAddress] = useState('');
     const [isDeliveryOpen, setIsDeliveryOpen] = useState(true);
+    const [isOrderClosed, setIsOrderClosed] = useState(false);
     const [dialogMessage, setDialogMessage] = useState<string | null>(null);
     const [showDialog, setShowDialog] = useState(false);
     const [confirmation, setConfirmation] = useState<{
@@ -40,9 +45,65 @@ export default function SalePage() {
     });
 
     useEffect(() => {
+        // Fetch current user
+        fetch('/api/auth/me', { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+                if (data.user && data.user.IsAdmin) {
+                    setIsAdmin(true);
+                }
+            })
+            .catch(err => console.error("Auth check failed", err));
+
         fetch('/api/tables').then(r => r.json()).then(setTables).catch(err => console.error(err));
         fetch('/api/categories').then(r => r.json()).then(setCategories).catch(err => console.error(err));
     }, []);
+
+    // Load order if ID is present
+    useEffect(() => {
+        const orderId = searchParams.get('id');
+        if (orderId) {
+            fetch(`/api/orders/${orderId}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.sale) {
+                        setCurrentOrderId(data.sale.ID);
+                        setOrderType(data.sale.OrderType || 'Dine In');
+                        setCustomerPhone(data.sale.PhoneNo || '');
+                        setDeliveryAddress(data.sale.DeliveryAddress || '');
+                        setIsOrderClosed(!!data.sale.Closed);
+
+                        setCart(data.items.map((i: any) => ({
+                            id: i.id,
+                            itemCode: i.itemCode,
+                            itemName: i.itemName,
+                            price: i.price,
+                            qty: i.qty
+                        })));
+
+                        // Switch to items view
+                        setStep('items');
+
+                        // If Dine In and NOT closed, we might want to select the table (if we had specific table binding).
+                        // Note: Our current tables API loads tables with their saleId/total for active tables.
+                        // Setting selectedTable manually here might overlap with `fetch('/api/tables')` which syncs status.
+                        // Ideally, we find the table with data.sale.ID and set it.
+                    }
+                })
+                .catch(err => console.error("Err loading order", err));
+        }
+    }, [searchParams]);
+
+    // Update selectedTable based on loaded order and active tables
+    useEffect(() => {
+        if (currentOrderId && tables.length > 0 && orderType === 'Dine In' && !isOrderClosed) {
+            // Find table that has this saleId
+            const activeTable = tables.find(t => t.saleId === currentOrderId);
+            if (activeTable) {
+                setSelectedTable(activeTable);
+            }
+        }
+    }, [currentOrderId, tables, orderType, isOrderClosed]);
 
     useEffect(() => {
         if (!selectedCategory) {
@@ -176,10 +237,20 @@ export default function SalePage() {
             }
 
             showAlertDialog('Order saved');
-            // After saving, go back to the tables view
+
+            // If Admin, redirect to list. If not, reset for next order.
+            if (isAdmin) {
+                router.push('/order-management');
+                return;
+            }
+
+            // After saving, go back to the tables view for non-admin
             setCart([]);
             setSelectedTable(null);
             setStep('tables');
+            setOrderType('Dine In');
+            setCustomerPhone('');
+            setDeliveryAddress('');
         } catch (err) {
             console.error(err); // Log error for debugging
             showAlertDialog('Error saving order');
@@ -188,11 +259,18 @@ export default function SalePage() {
 
     return (
         <div className="p-4">
-            <h1 className="text-xl font-bold mb-3">Sale / POS</h1>
+            <div className="flex items-center justify-between mb-3">
+                <h1 className="text-xl font-bold">Sale / POS</h1>
+                {isOrderClosed && (
+                    <span className="bg-red-100 text-red-600 px-3 py-1 rounded-full text-sm font-bold animate-pulse">
+                        ORDER CLOSED
+                    </span>
+                )}
+            </div>
 
             {/* Order Type Selector - Always visible */}
             <div className="flex gap-2 mb-4 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg w-fit">
-                {['Dine In', 'Take Away', 'Home Delivery'].map(type => (
+                {['Dine In', 'Take Away', 'Home Delivery'].filter(type => isAdmin || type === 'Dine In').map(type => (
                     <button
                         key={type}
                         onClick={() => {
@@ -317,44 +395,59 @@ export default function SalePage() {
                             )}
 
                             <Cart items={cart} onQty={onQty} onRemove={onRemove} />
-                            <div className="flex gap-2 mt-3">
-                                <button onClick={placeOrder} className="flex-1 py-2 rounded bg-brand-500 text-white">{currentOrderId ? "Update Order" : "Place Order"}</button>
-                                {currentOrderId ? (
-                                    <button onClick={() => {
-                                        if (!currentOrderId) return;
 
-                                        setConfirmation({
-                                            isOpen: true,
-                                            title: "Confirm Close",
-                                            message: "Close this table and complete the order?",
-                                            onConfirm: async () => {
-                                                try {
-                                                    const res = await fetch(`/api/orders/${currentOrderId}/close`, { method: 'POST' });
-                                                    if (res.ok) {
-                                                        showAlertDialog('Table closed');
-                                                        // clear cart and selected table
-                                                        setCart([]);
-                                                        setCurrentOrderId(null);
-                                                        setIsCartExpanded(false);
-                                                        // refresh tables
-                                                        const tblRes = await fetch('/api/tables');
-                                                        if (tblRes.ok) setTables(await tblRes.json());
-                                                        setSelectedTable(null);
-                                                        setStep('tables');
-                                                    } else {
-                                                        const data = await res.json(); // Log error for debugging
-                                                        console.error('Close failed', data);
-                                                        showAlertDialog('Failed to close table');
+                            {!isOrderClosed ? (
+                                <div className="flex gap-2 mt-3">
+                                    <button onClick={placeOrder} className="flex-1 py-2 rounded bg-brand-500 text-white">
+                                        {currentOrderId ? "Update Order" : "Place Order"}
+                                    </button>
+                                    {currentOrderId ? (
+                                        <button onClick={() => {
+                                            if (!currentOrderId) return;
+
+                                            setConfirmation({
+                                                isOpen: true,
+                                                title: "Confirm Close",
+                                                message: "Close this table and complete the order?",
+                                                onConfirm: async () => {
+                                                    try {
+                                                        const res = await fetch(`/api/orders/${currentOrderId}/close`, { method: 'POST' });
+                                                        if (res.ok) {
+                                                            showAlertDialog('Table closed');
+                                                            // clear cart and selected table
+                                                            setCart([]);
+                                                            setCurrentOrderId(null);
+                                                            setIsCartExpanded(false);
+                                                            // refresh tables
+                                                            const tblRes = await fetch('/api/tables');
+                                                            if (tblRes.ok) setTables(await tblRes.json());
+                                                            setSelectedTable(null);
+                                                            setStep('tables');
+                                                            // If redirected from list, maybe go back?
+                                                            if (searchParams.get('id')) {
+                                                                router.push('/order-management');
+                                                            }
+                                                        } else {
+                                                            const data = await res.json();
+                                                            console.error('Close failed', data);
+                                                            showAlertDialog('Failed to close table');
+                                                        }
+                                                    } catch (err) {
+                                                        console.error(err);
+                                                        showAlertDialog('Error closing table');
                                                     }
-                                                } catch (err) {
-                                                    console.error(err); // Log error for debugging
-                                                    showAlertDialog('Error closing table');
                                                 }
-                                            }
-                                        });
-                                    }} className="py-2 px-3 rounded border bg-white">Close</button>
-                                ) : null}
-                            </div>
+                                            });
+                                        }} className="py-2 px-3 rounded border bg-white hover:bg-gray-50 transition-colors">
+                                            Close Table
+                                        </button>
+                                    ) : null}
+                                </div>
+                            ) : (
+                                <div className="mt-4 p-3 bg-gray-100 dark:bg-gray-700 rounded text-center text-gray-600 dark:text-gray-400 font-medium">
+                                    Order is closed and cannot be modified.
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

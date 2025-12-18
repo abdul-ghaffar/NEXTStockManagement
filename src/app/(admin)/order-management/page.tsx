@@ -1,240 +1,209 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { TrashBinIcon, PlusIcon } from "@/icons";
-// Verify icons later, for now using simple placeholders if needed or assuming Lucide/Heroicon generic names if mapped.
-// Actually, looking at AppSidebar, we have a custom icon file. I should check what is available but for now I will use text or simple SVGs inline if I am not sure about exports.
-// To be safe, I'll inline simple SVGs for the cart actions to avoid import errors, or use text buttons.
+import Link from 'next/link';
+import { useRouter } from "next/navigation";
+import { FaEye } from "react-icons/fa";
 
-type Product = {
-    id: number;
-    itemCode: string; // Ensure this matches DB/API
-    itemName: string;
-    price: number;
-    qty?: number; // Stock
+type Sale = {
+    ID: number;
+    ClientName: string;
+    SaleDate: string;
+    TotalAmount: number;
+    OrderType: string;
+    PhoneNo: string;
+    DeliveryAddress: string;
+    Closed: boolean;
 };
 
-type CartItem = Product & {
-    cartQty: number;
-};
-
-const tables = ["Table 1", "Table 2", "Table 3", "Table 4", "Walk-in"];
-
-export default function OrderManagementPage() {
-    const [products, setProducts] = useState<Product[]>([]);
-    const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
-    const [search, setSearch] = useState("");
-    const [cart, setCart] = useState<CartItem[]>([]);
-    const [selectedTable, setSelectedTable] = useState(tables[0]);
+export default function SalesListPage() {
+    const router = useRouter();
+    const [sales, setSales] = useState<Sale[]>([]);
     const [loading, setLoading] = useState(true);
-    const [submitting, setSubmitting] = useState(false);
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [searchId, setSearchId] = useState("");
+    const [orderType, setOrderType] = useState("All");
+    const [status, setStatus] = useState("All");
 
     useEffect(() => {
-        fetch("/api/products")
-            .then((res) => res.json())
-            .then((data) => {
-                if (Array.isArray(data)) {
-                    setProducts(data);
-                    setFilteredProducts(data);
+        // Check Access
+        fetch('/api/auth/me', { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+                if (!data.user || !data.user.IsAdmin) {
+                    router.push('/order-management/sale');
                 } else {
-                    console.error("Invalid products data", data);
+                    fetchSales();
                 }
             })
-            .catch((err) => console.error(err))
-            .finally(() => setLoading(false));
-    }, []);
+            .catch(() => router.push('/order-management/sale'));
+    }, [page, orderType, status]);
 
-    useEffect(() => {
-        const lower = search.toLowerCase();
-        setFilteredProducts(
-            products.filter(
-                (p) =>
-                    p.itemName.toLowerCase().includes(lower) ||
-                    p.itemCode.toLowerCase().includes(lower)
-            )
-        );
-    }, [search, products]);
-
-    const addToCart = (product: Product) => {
-        setCart((prev) => {
-            const existing = prev.find((item) => item.id === product.id);
-            if (existing) {
-                return prev.map((item) =>
-                    item.id === product.id
-                        ? { ...item, cartQty: item.cartQty + 1 }
-                        : item
-                );
-            }
-            return [...prev, { ...product, cartQty: 1 }];
-        });
-    };
-
-    const removeFromCart = (id: number) => {
-        setCart((prev) => prev.filter((item) => item.id !== id));
-    };
-
-    const updateQty = (id: number, delta: number) => {
-        setCart((prev) =>
-            prev.map((item) => {
-                if (item.id === id) {
-                    const newQty = Math.max(1, item.cartQty + delta);
-                    return { ...item, cartQty: newQty };
-                }
-                return item;
-            })
-        );
-    };
-
-    const totalAmount = cart.reduce(
-        (sum, item) => sum + item.price * item.cartQty,
-        0
-    );
-
-    const handleSubmit = async () => {
-        if (cart.length === 0) return;
-        setSubmitting(true);
+    const fetchSales = async () => {
+        setLoading(true);
         try {
-            const orderData = {
-                tableName: selectedTable,
-                items: cart.map(item => ({
-                    itemCode: item.itemCode,
-                    qty: item.cartQty,
-                    price: item.price,
-                    total: item.price * item.cartQty
-                })),
-                netTotal: totalAmount
-            };
-
-            const res = await fetch("/api/orders", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(orderData)
+            const params = new URLSearchParams({
+                page: page.toString(),
+                limit: '10',
+                ...(searchId && { search: searchId }),
+                ...(orderType !== 'All' && { orderType }),
+                ...(status !== 'All' && { status })
             });
-
+            const res = await fetch(`/api/sales?${params}`);
+            const data = await res.json();
             if (res.ok) {
-                alert("Order placed successfully!");
-                setCart([]);
-            } else {
-                alert("Failed to place order.");
+                setSales(data.data);
+                setTotalPages(data.totalPages);
             }
         } catch (error) {
             console.error(error);
-            alert("Error placing order.");
         } finally {
-            setSubmitting(false);
+            setLoading(false);
         }
     };
 
-    return (
-        <div className="flex h-[calc(100vh-100px)] gap-4">
-            {/* Left: Product Selection */}
-            <div className="flex-1 flex flex-col gap-4 bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-                <div className="flex justify-between items-center">
-                    <h2 className="text-xl font-bold dark:text-white">Products</h2>
-                    <input
-                        type="text"
-                        placeholder="Search products..."
-                        className="px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                    />
-                </div>
+    const handleSearch = (e: React.FormEvent) => {
+        e.preventDefault();
+        setPage(1); // Reset to page 1
+        fetchSales();
+    };
 
-                <div className="overflow-y-auto flex-1 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {loading ? (
-                        <p>Loading...</p>
-                    ) : (
-                        filteredProducts.map((p) => (
-                            <div
-                                key={p.id}
-                                className="border p-3 rounded-lg flex flex-col justify-between cursor-pointer hover:shadow-md transition dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750"
-                                onClick={() => addToCart(p)}
-                            >
-                                <div>
-                                    <p className="font-semibold text-sm truncate dark:text-gray-200">{p.itemName}</p>
-                                    <p className="text-xs text-gray-500">{p.itemCode}</p>
-                                </div>
-                                <div className="mt-2 flex justify-between items-center">
-                                    <span className="font-bold text-brand-600 dark:text-brand-400">
-                                        {p.price.toFixed(2)}
-                                    </span>
-                                    <button className="bg-brand-500 text-white text-xs px-2 py-1 rounded">
-                                        Add
-                                    </button>
-                                </div>
-                            </div>
-                        ))
-                    )}
-                </div>
+    return (
+        <div className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow min-h-[80vh]">
+            <div className="flex justify-between items-center mb-6">
+                <h1 className="text-2xl font-bold dark:text-white">Sales List</h1>
+                <Link href="/order-management/sale" className="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded">
+                    New Sale
+                </Link>
             </div>
 
-            {/* Right: Cart */}
-            <div className="w-1/3 min-w-[300px] flex flex-col gap-4 bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-                <h2 className="text-xl font-bold dark:text-white">Order Details</h2>
+            <div className="flex gap-4 mb-6 flex-wrap">
+                <form onSubmit={handleSearch} className="flex gap-2">
+                    <input
+                        type="text"
+                        placeholder="Search by Order ID..."
+                        value={searchId}
+                        onChange={(e) => setSearchId(e.target.value)}
+                        className="border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded px-3 py-2"
+                    />
+                    <button type="submit" className="bg-gray-200 dark:bg-gray-600 px-4 py-2 rounded hover:bg-gray-300 dark:hover:bg-gray-500">
+                        Search
+                    </button>
+                </form>
 
-                <div>
-                    <label className="block text-sm font-medium mb-1 dark:text-gray-300">Table / Customer</label>
-                    <select
-                        className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                        value={selectedTable}
-                        onChange={(e) => setSelectedTable(e.target.value)}
-                    >
-                        {tables.map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                </div>
+                <select
+                    value={orderType}
+                    onChange={(e) => {
+                        setOrderType(e.target.value);
+                        setPage(1);
+                    }}
+                    className="border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded px-3 py-2"
+                >
+                    <option value="All">All Types</option>
+                    <option value="Dine In">Dine In</option>
+                    <option value="Take Away">Take Away</option>
+                    <option value="Home Delivery">Home Delivery</option>
+                </select>
 
-                <div className="flex-1 overflow-y-auto border-t border-b dark:border-gray-700 py-2">
-                    {cart.length === 0 ? (
-                        <p className="text-center text-gray-400 mt-4">Cart is empty</p>
-                    ) : (
-                        cart.map((item) => (
-                            <div key={item.id} className="flex items-center justify-between mb-2">
-                                <div className="flex-1 truncate pr-2">
-                                    <p className="text-sm font-medium dark:text-gray-200">{item.itemName}</p>
-                                    <p className="text-xs text-gray-500">
-                                        {item.price.toFixed(2)} x {item.cartQty}
-                                    </p>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={() => updateQty(item.id, -1)}
-                                        className="p-1 px-3 bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300 font-bold"
-                                    >
-                                        -
-                                    </button>
-                                    <span className="text-sm w-4 text-center dark:text-white">{item.cartQty}</span>
-                                    <button
-                                        onClick={() => updateQty(item.id, 1)}
-                                        className="p-1 bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300"
-                                    >
-                                        <div className="w-4 h-4"><PlusIcon /></div>
-                                    </button>
-                                    <button
-                                        onClick={() => removeFromCart(item.id)}
-                                        className="p-1 text-red-500 hover:text-red-700 ml-1"
-                                    >
-                                        <div className="w-4 h-4"><TrashBinIcon /></div>
-                                    </button>
-                                </div>
-                            </div>
-                        ))
-                    )}
-                </div>
+                <select
+                    value={status}
+                    onChange={(e) => {
+                        setStatus(e.target.value);
+                        setPage(1);
+                    }}
+                    className="border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded px-3 py-2"
+                >
+                    <option value="All">All Status</option>
+                    <option value="Running">Running Only</option>
+                    <option value="Closed">Closed Only</option>
+                </select>
+            </div>
 
-                <div className="pt-2">
-                    <div className="flex justify-between text-lg font-bold mb-4 dark:text-white">
-                        <span>Total:</span>
-                        <span>{totalAmount.toFixed(2)}</span>
-                    </div>
+            <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                    <thead className="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-200 uppercase text-sm leading-normal">
+                        <tr>
+                            <th className="py-3 px-6">Order ID</th>
+                            <th className="py-3 px-6">Date</th>
+                            <th className="py-3 px-6">Customer / Table</th>
+                            <th className="py-3 px-6">Type</th>
+                            <th className="py-3 px-6">Status</th>
+                            <th className="py-3 px-6">Delivery Info</th>
+                            <th className="py-3 px-6 text-right">Total</th>
+                            <th className="py-3 px-6 text-center">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody className="text-gray-600 dark:text-gray-300 text-sm font-light">
+                        {loading ? (
+                            <tr><td colSpan={6} className="text-center py-6">Loading...</td></tr>
+                        ) : sales.length === 0 ? (
+                            <tr><td colSpan={6} className="text-center py-6">No sales found</td></tr>
+                        ) : (
+                            sales.map((sale) => (
+                                <tr key={sale.ID} className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600">
+                                    <td className="py-3 px-6 font-medium whitespace-nowrap">#{sale.ID}</td>
+                                    <td className="py-3 px-6">{new Date(sale.SaleDate).toLocaleString()}</td>
+                                    <td className="py-3 px-6 font-medium">{sale.ClientName || "-"}</td>
+                                    <td className="py-3 px-6">
+                                        <span className={`px-2 py-1 rounded text-xs font-semibold ${sale.OrderType === 'Dine In' ? 'bg-blue-100 text-blue-600' :
+                                            sale.OrderType === 'Home Delivery' ? 'bg-orange-100 text-orange-600' :
+                                                'bg-green-100 text-green-600'
+                                            }`}>
+                                            {sale.OrderType}
+                                        </span>
+                                    </td>
+                                    <td className="py-3 px-6">
+                                        <span className={`px-2 py-1 rounded text-xs font-semibold ${sale.Closed ? 'bg-gray-200 text-gray-600' : 'bg-yellow-100 text-yellow-600'
+                                            }`}>
+                                            {sale.Closed ? 'Closed' : 'Running'}
+                                        </span>
+                                    </td>
+                                    <td className="py-3 px-6 max-w-xs truncate">
+                                        {sale.OrderType === 'Home Delivery' ? (
+                                            <div className="flex flex-col text-xs">
+                                                <span>{sale.PhoneNo}</span>
+                                                <span className="truncate" title={sale.DeliveryAddress}>{sale.DeliveryAddress}</span>
+                                            </div>
+                                        ) : (
+                                            <span className="text-gray-400">-</span>
+                                        )}
+                                    </td>
+                                    <td className="py-3 px-6 text-right font-bold text-brand-600">
+                                        {typeof sale.TotalAmount === 'number' ? sale.TotalAmount.toFixed(2) : sale.TotalAmount}
+                                    </td>
+                                    <td className="py-3 px-6 text-center">
+                                        <Link href={`/order-management/sale?id=${sale.ID}`}>
+                                            <button className="text-blue-500 hover:text-blue-700 p-2" title="View/Edit Order">
+                                                <FaEye size={18} />
+                                            </button>
+                                        </Link>
+                                    </td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
+
+            <div className="flex justify-between items-center mt-6">
+                <span className="text-sm text-gray-600 dark:text-gray-400">
+                    Page {page} of {totalPages}
+                </span>
+                <div className="flex gap-2">
                     <button
-                        className={`w-full py-3 rounded-lg text-white font-bold transition ${cart.length === 0 || submitting
-                            ? "bg-gray-400 cursor-not-allowed"
-                            : "bg-brand-500 hover:bg-brand-600 shadow-lg"
-                            }`}
-                        onClick={handleSubmit}
-                        disabled={cart.length === 0 || submitting}
+                        onClick={() => setPage(p => Math.max(1, p - 1))}
+                        disabled={page === 1}
+                        className="px-4 py-2 border rounded hover:bg-gray-100 disabled:opacity-50 dark:border-gray-600 dark:hover:bg-gray-700"
                     >
-                        {submitting ? "Processing..." : "Place Order"}
+                        Previous
+                    </button>
+                    <button
+                        onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                        disabled={page === totalPages}
+                        className="px-4 py-2 border rounded hover:bg-gray-100 disabled:opacity-50 dark:border-gray-600 dark:hover:bg-gray-700"
+                    >
+                        Next
                     </button>
                 </div>
             </div>
