@@ -12,16 +12,18 @@ export default function Cart({ items, onQty, onRemove }: { items: CartItem[]; on
                     <div className="text-center text-gray-400">Cart empty</div>
                 ) : (
                     items.map((it) => (
-                        <div key={it.id} className="flex items-center justify-between py-2 min-h-16">
+                        <div key={it.id} className="flex flex-col md:flex-row items-start md:items-center justify-between py-2 min-h-16">
                             <div className="flex-1 pr-2">
-                                <div className="font-medium text-sm truncate" title={it.itemName}>{it.itemName}</div>
+                                <div className="font-medium text-sm wrap-break-word" title={it.itemName}>{it.itemName}</div>
                                 <div className="text-xs text-gray-500">{it.price.toFixed(2)} x {it.qty}</div>
                             </div>
-                            <div className="flex flex-col items-center gap-1 ml-3">
-                                <button onClick={() => onQty(it.id, -1)} className="w-8 h-8 flex items-center justify-center bg-gray-200 rounded">-</button>
-                                <div className="w-8 h-8 flex items-center justify-center font-semibold">{it.qty}</div>
-                                <button onClick={() => onQty(it.id, 1)} className="w-8 h-8 flex items-center justify-center bg-gray-200 rounded">+</button>
-                                <button onClick={() => onRemove(it.id)} className="mt-1 text-red-500 text-sm">x</button>
+                            <div className="mt-2 md:mt-0 flex items-center gap-2">
+                                <button aria-label={`Decrease ${it.itemName} quantity`} onClick={() => onQty(it.id, -1)} className="w-8 h-8 flex items-center justify-center bg-red-100 text-red-600 hover:bg-red-200 rounded transition-colors">-</button>
+                                <div className="px-2 text-center font-semibold w-8">{it.qty}</div>
+                                <button aria-label={`Increase ${it.itemName} quantity`} onClick={() => onQty(it.id, 1)} className="w-8 h-8 flex items-center justify-center bg-green-100 text-green-600 hover:bg-green-200 rounded transition-colors">+</button>
+                                <button onClick={() => onRemove(it.id)} className="ml-3 text-red-500 text-sm" aria-label={`Remove ${it.itemName}`}>
+                                    x
+                                </button>
                             </div>
                         </div>
                     ))

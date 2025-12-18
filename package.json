@@ -22,8 +22,8 @@
     "apexcharts": "^4.7.0",
     "autoprefixer": "^10.4.22",
     "flatpickr": "^4.6.13",
+    "jsonwebtoken": "^9.0.0",
     "mssql": "^12.2.0",
-  "jsonwebtoken": "^9.0.0",
     "next": "16.0.10",
     "react": "^19.2.0",
     "react-apexcharts": "^1.8.0",
@@ -31,6 +31,7 @@
     "react-dnd-html5-backend": "^16.0.1",
     "react-dom": "^19.2.0",
     "react-dropzone": "^14.3.8",
+    "react-icons": "^5.5.0",
     "swiper": "^11.2.10",
     "tailwind-merge": "^2.6.0"
   },
@@ -47,8 +48,6 @@
     "tailwindcss": "^4.1.17",
     "typescript": "^5.9.3"
   },
-  "peerDependencies": {},
-  "optionalDependencies": {},
   "engines": {},
   "overrides": {
     "@react-jvectormap/core": {
