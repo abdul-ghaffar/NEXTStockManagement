@@ -16,6 +16,7 @@ export type OrderData = {
     orderType?: string;
     phone?: string;
     address?: string;
+    userId?: number;
 };
 
 export async function createOrder(order: OrderData) {
@@ -34,11 +35,12 @@ export async function createOrder(order: OrderData) {
         saleRequest.input("OrderType", sql.NVarChar(50), order.orderType || 'Dine In');
         saleRequest.input("PhoneNo", sql.NVarChar(50), order.phone || null);
         saleRequest.input("DeliveryAddress", sql.NVarChar(500), order.address || null);
+        saleRequest.input("UserID", sql.Int, order.userId || null);
 
         const saleResult = await saleRequest.query(`
-            INSERT INTO [dbo].[Sale] (ClientName, SaleDate, TotalAmount, AreaID, OrderType, PhoneNo, DeliveryAddress)
+            INSERT INTO [dbo].[Sale] (ClientName, SaleDate, TotalAmount, AreaID, OrderType, PhoneNo, DeliveryAddress, UserID)
             OUTPUT INSERTED.ID
-            VALUES (@ClientName, @SaleDate, @TotalAmount, @AreaID, @OrderType, @PhoneNo, @DeliveryAddress)
+            VALUES (@ClientName, @SaleDate, @TotalAmount, @AreaID, @OrderType, @PhoneNo, @DeliveryAddress, @UserID)
         `);
 
         const saleID = saleResult.recordset && saleResult.recordset[0] ? saleResult.recordset[0].ID : null;
@@ -88,8 +90,18 @@ export async function createOrder(order: OrderData) {
     }
 }
 
-export async function updateOrder(orderId: number, order: OrderData) {
+export async function updateOrder(orderId: number, order: OrderData, currentUser?: { ID: number; IsAdmin: boolean }) {
     const pool = await getPool();
+
+    // Verification: can only update if Admin or Owner
+    if (currentUser) {
+        const checkRes = await pool.request().input('ID', sql.BigInt, orderId).query("SELECT UserID FROM [dbo].[Sale] WHERE ID = @ID");
+        const existingOrder = checkRes.recordset[0];
+        if (existingOrder && !currentUser.IsAdmin && existingOrder.UserID !== currentUser.ID) {
+            throw new Error("FORBIDDEN: You can only update your own orders.");
+        }
+    }
+
     const transaction = new sql.Transaction(pool);
 
     try {
@@ -152,7 +164,11 @@ export async function updateOrder(orderId: number, order: OrderData) {
     }
 }
 
-export async function closeOrder(orderId: number) {
+export async function closeOrder(orderId: number, currentUser?: { IsAdmin: boolean }) {
+    if (currentUser && !currentUser.IsAdmin) {
+        throw new Error("FORBIDDEN: Only administrators can close orders.");
+    }
+
     const pool = await getPool();
     const transaction = new sql.Transaction(pool);
 
@@ -195,7 +211,7 @@ export async function getSales(page: number = 1, limit: number = 10, searchId?: 
     const offset = (page - 1) * limit;
 
     let query = `
-        SELECT [ID], [ClientName], [SaleDate], [TotalAmount], [OrderType], [PhoneNo], [DeliveryAddress], [Closed]
+        SELECT [ID], [ClientName], [SaleDate], [TotalAmount], [OrderType], [PhoneNo], [DeliveryAddress], [Closed], [UserID]
         FROM [dbo].[Sale]
         WHERE 1=1
     `;
@@ -256,20 +272,20 @@ export async function getOrder(id: number) {
     const itemsRes = await pool.request()
         .input('SaleID', sql.BigInt, id)
         .query(`
-            SELECT SI.ItemCode, SI.Qty, SI.SalePrice as Price, P.ItemName, P.ID as ProductID 
+            SELECT SI.*, P.ItemName, P.ID as ProductID 
             FROM [dbo].[Sale_Item] SI
-            JOIN [dbo].[Product] P ON SI.ItemCode = P.ItemCode
+            LEFT JOIN [dbo].[Product] P ON SI.ItemCode = P.ItemCode
             WHERE SI.SaleID = @SaleID
         `);
 
     return {
         sale,
         items: itemsRes.recordset.map(r => ({
-            id: r.ProductID,
+            id: r.ProductID || r.ID,
             itemCode: r.ItemCode,
-            itemName: r.ItemName,
-            price: r.Price,
-            qty: r.Qty
+            itemName: r.ItemName || r.ItemCode || 'Unknown Item',
+            price: r.SalePrice ?? r.Price ?? 0,
+            qty: r.Qty ?? r.qty ?? 0
         }))
     };
 }

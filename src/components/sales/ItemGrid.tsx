@@ -59,7 +59,7 @@ export default function ItemGrid({ items, onAdd, categoryName, onClearCategory }
     }, [items, debouncedQuery]);
 
     return (
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4 shadow-theme-sm">
             <div
                 className="flex items-center justify-between cursor-pointer mb-4"
                 onClick={() => setIsExpanded(!isExpanded)}

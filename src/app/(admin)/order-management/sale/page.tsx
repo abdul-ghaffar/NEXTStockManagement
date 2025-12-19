@@ -1,6 +1,7 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import { Modal, ConfirmationModal } from "@/components/ui/modal";
 import TableGrid from "@/components/sales/TableGrid";
 import CategoryList from "@/components/sales/CategoryList";
@@ -15,10 +16,12 @@ type Item = { id: number; itemCode: string; itemName: string; price: number };
 export default function SalePage() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const [isAdmin, setIsAdmin] = useState(false);
-    const [step, setStep] = useState<"tables" | "items">("tables");
+    const { user } = useAuth();
+    const isAdmin = !!user?.IsAdmin;
+    const [step, setStep] = useState<"tables" | "items">(searchParams.get('id') ? "items" : "tables");
     const [tables, setTables] = useState<Table[]>([]);
     const [selectedTable, setSelectedTable] = useState<Table | null>(null);
+    const [isOwner, setIsOwner] = useState(true);
     const [categories, setCategories] = useState<Category[]>([]);
     const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
     const [items, setItems] = useState<Item[]>([]);
@@ -45,16 +48,6 @@ export default function SalePage() {
     });
 
     useEffect(() => {
-        // Fetch current user
-        fetch('/api/auth/me', { method: 'POST' })
-            .then(res => res.json())
-            .then(data => {
-                if (data.user && data.user.IsAdmin) {
-                    setIsAdmin(true);
-                }
-            })
-            .catch(err => console.error("Auth check failed", err));
-
         fetch('/api/tables').then(r => r.json()).then(setTables).catch(err => console.error(err));
         fetch('/api/categories').then(r => r.json()).then(setCategories).catch(err => console.error(err));
     }, []);
@@ -69,17 +62,29 @@ export default function SalePage() {
                     if (data.sale) {
                         setCurrentOrderId(data.sale.ID);
                         setOrderType(data.sale.OrderType || 'Dine In');
-                        setCustomerPhone(data.sale.PhoneNo || '');
-                        setDeliveryAddress(data.sale.DeliveryAddress || '');
+                        setCustomerPhone(data.sale.PhoneNo || data.sale.phone || data.sale.Phone || '');
+                        setDeliveryAddress(data.sale.DeliveryAddress || data.sale.address || data.sale.Address || '');
+                        if (data.sale.OrderType === 'Home Delivery') {
+                            setIsDeliveryOpen(true);
+                        }
                         setIsOrderClosed(!!data.sale.Closed);
 
-                        setCart(data.items.map((i: any) => ({
-                            id: i.id,
-                            itemCode: i.itemCode,
-                            itemName: i.itemName,
-                            price: i.price,
-                            qty: i.qty
-                        })));
+                        // Ownership check
+                        if (!isAdmin && data.sale.UserID && data.sale.UserID !== user?.ID) {
+                            setIsOwner(false);
+                        } else {
+                            setIsOwner(true);
+                        }
+
+                        const loadedItems = (data.items || []).map((i: any) => ({
+                            id: i.id || i.ProductID || i.prodID || Math.random(),
+                            itemCode: i.itemCode || i.ItemCode,
+                            itemName: i.itemName || i.ItemName || i.ItemsName || i.itemCode || 'Unknown',
+                            price: Number(i.price) || Number(i.SalePrice) || 0,
+                            qty: Number(i.qty) || Number(i.Qty) || 0
+                        }));
+                        console.log("Setting cart with:", loadedItems);
+                        setCart(loadedItems);
 
                         // Switch to items view
                         setStep('items');
@@ -139,15 +144,22 @@ export default function SalePage() {
                 if (res.ok) {
                     const data = await res.json();
                     const items = data.items || [];
-                    const mapped = items.map((it: any, idx: number) => ({
-                        id: it.prodID ?? idx,
-                        itemCode: it.ItemCode,
-                        itemName: it.ItemName || it.itemName || '',
-                        price: Number(it.SalePrice) || Number(it.price) || 0,
-                        qty: Number(it.Qty) || 1
+                    const mapped = items.map((it: any) => ({
+                        id: it.id || it.ProductID || it.prodID,
+                        itemCode: it.itemCode || it.ItemCode,
+                        itemName: it.itemName || it.ItemName || '',
+                        price: Number(it.price) || Number(it.SalePrice) || 0,
+                        qty: Number(it.qty) || Number(it.Qty) || 1
                     }));
                     setCart(mapped);
                     setCurrentOrderId(Number(t.saleId));
+
+                    // Ownership check
+                    if (!isAdmin && data.sale.UserID && data.sale.UserID !== user?.ID) {
+                        setIsOwner(false);
+                    } else {
+                        setIsOwner(true);
+                    }
                 } else {
                     console.error('Failed to load order details');
                 }
@@ -158,6 +170,7 @@ export default function SalePage() {
             // new order
             setCart([]);
             setCurrentOrderId(null);
+            setIsOwner(true);
         }
         setStep('items');
     };
@@ -205,6 +218,12 @@ export default function SalePage() {
         try {
             const res = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sale) });
             const data = await res.json();
+
+            if (res.status === 403) {
+                showAlertDialog(data.message || "Forbidden: You don't have permission to update this order.");
+                return;
+            }
+
             if (!res.ok) {
                 console.error('Save failed', data); // Log error for debugging
                 showAlertDialog('Failed to save order');
@@ -260,7 +279,7 @@ export default function SalePage() {
     return (
         <div className="p-4">
             <div className="flex items-center justify-between mb-3">
-                <h1 className="text-xl font-bold">Sale / POS</h1>
+                <h1 className="text-xl font-bold text-gray-900 dark:text-white">Sale / POS</h1>
                 {isOrderClosed && (
                     <span className="bg-red-100 text-red-600 px-3 py-1 rounded-full text-sm font-bold animate-pulse">
                         ORDER CLOSED
@@ -269,7 +288,7 @@ export default function SalePage() {
             </div>
 
             {/* Order Type Selector - Always visible */}
-            <div className="flex gap-2 mb-4 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg w-fit">
+            <div className={`flex gap-2 mb-4 bg-gray-100 dark:bg-gray-900 p-1.5 rounded-xl w-fit ${(isAdmin || isOwner) ? "" : "opacity-50 pointer-events-none grayscale-[0.5]"}`}>
                 {['Dine In', 'Take Away', 'Home Delivery'].filter(type => isAdmin || type === 'Dine In').map(type => (
                     <button
                         key={type}
@@ -287,8 +306,8 @@ export default function SalePage() {
                                 }
                             }
                         }}
-                        className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${orderType === type
-                            ? 'bg-white dark:bg-gray-700 shadow text-brand-600 dark:text-white'
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${orderType === type
+                            ? 'bg-white dark:bg-gray-800 shadow-theme-sm text-brand-500 dark:text-white border border-transparent'
                             : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
                             }`}
                     >
@@ -299,7 +318,7 @@ export default function SalePage() {
 
             {step === 'tables' && (
                 <div>
-                    <h2 className="mb-2 font-medium">Select Table</h2>
+                    <h2 className="mb-2 font-medium text-gray-800 dark:text-white">Select Table</h2>
                     <TableGrid tables={tables} onSelect={onSelectTable} />
                 </div>
             )}
@@ -312,8 +331,8 @@ export default function SalePage() {
                                 <div>
                                     {orderType === 'Dine In' && (
                                         <>
-                                            <button onClick={() => { setStep('tables'); setSelectedTable(null); }} className="px-3 py-1 border rounded">Back</button>
-                                            <span className="ml-3 font-medium">Table: {selectedTable?.name}</span>
+                                            <button onClick={() => { setStep('tables'); setSelectedTable(null); }} className="px-3 py-1 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded text-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Back</button>
+                                            <span className="ml-3 font-medium text-gray-800 dark:text-white">Table: {selectedTable?.name}</span>
                                         </>
                                     )}
                                 </div>
@@ -321,7 +340,7 @@ export default function SalePage() {
 
                             <CategoryList categories={categories} onSelect={onSelectCategory} selectedCategoryId={selectedCategory?.id} />
 
-                            <div className="mt-3">
+                            <div className={`mt-3 ${(isAdmin || isOwner) ? "" : "opacity-50 pointer-events-none"}`}>
                                 <ItemGrid
                                     items={items}
                                     onAdd={addToCart}
@@ -333,9 +352,9 @@ export default function SalePage() {
                     )}
 
                     <div id="cart-section" className={isCartExpanded ? "lg:col-span-3" : ""}>
-                        <div className="border p-3 rounded-lg bg-white dark:bg-gray-800 transition-all duration-300">
+                        <div className="border border-gray-200 dark:border-gray-800 p-3 rounded-xl bg-white dark:bg-gray-900 transition-all duration-300 shadow-theme-sm">
                             <div className="flex items-center justify-between mb-2">
-                                <h3 className="font-medium">Cart</h3>
+                                <h3 className="font-medium text-gray-900 dark:text-white">Cart</h3>
                                 <button
                                     onClick={() => setIsCartExpanded(!isCartExpanded)}
                                     className="p-1.5 text-gray-500 hover:text-brand-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
@@ -346,7 +365,7 @@ export default function SalePage() {
                             </div>
 
                             {orderType === 'Home Delivery' && (
-                                <div className="mb-4 bg-blue-50 dark:bg-gray-700 rounded border border-blue-100 dark:border-gray-600 overflow-hidden transition-all">
+                                <div className={`mb-4 bg-blue-50 dark:bg-gray-700 rounded border border-blue-100 dark:border-gray-600 overflow-hidden transition-all ${(isAdmin || isOwner) ? "" : "opacity-80 pointer-events-none"}`}>
                                     <div
                                         className="flex items-center justify-between p-3 cursor-pointer bg-blue-100/50 dark:bg-gray-800/50"
                                         onClick={() => setIsDeliveryOpen(!isDeliveryOpen)}
@@ -375,7 +394,7 @@ export default function SalePage() {
                                                     type="text"
                                                     value={customerPhone}
                                                     onChange={(e) => setCustomerPhone(e.target.value)}
-                                                    className={`w-full p-2 border rounded text-sm dark:bg-gray-800 dark:border-gray-600 ${!customerPhone ? 'border-red-300' : 'border-gray-300'}`}
+                                                    className={`w-full p-2 border rounded text-sm bg-white dark:bg-gray-950 dark:border-gray-700 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 ${!customerPhone ? 'border-red-300' : 'border-gray-300'}`}
                                                     placeholder="Enter phone number"
                                                 />
                                             </div>
@@ -384,7 +403,7 @@ export default function SalePage() {
                                                 <textarea
                                                     value={deliveryAddress}
                                                     onChange={(e) => setDeliveryAddress(e.target.value)}
-                                                    className={`w-full p-2 border rounded text-sm dark:bg-gray-800 dark:border-gray-600 ${!deliveryAddress ? 'border-red-300' : 'border-gray-300'}`}
+                                                    className={`w-full p-2 border rounded text-sm bg-white dark:bg-gray-950 dark:border-gray-700 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 ${!deliveryAddress ? 'border-red-300' : 'border-gray-300'}`}
                                                     placeholder="Enter full address"
                                                     rows={2}
                                                 />
@@ -394,26 +413,41 @@ export default function SalePage() {
                                 </div>
                             )}
 
-                            <Cart items={cart} onQty={onQty} onRemove={onRemove} />
+                            <div className={(isAdmin || isOwner) ? "" : "opacity-80 pointer-events-none"}>
+                                <Cart items={cart} onQty={onQty} onRemove={onRemove} />
+                            </div>
 
                             {!isOrderClosed ? (
-                                <div className="flex gap-2 mt-3">
-                                    <button onClick={placeOrder} className="flex-1 py-2 rounded bg-brand-500 text-white">
+                                <div className="flex flex-col gap-2 mt-3">
+                                    <button
+                                        onClick={placeOrder}
+                                        disabled={(!isAdmin && !isOwner) || cart.length === 0}
+                                        className="w-full py-2.5 rounded-lg bg-brand-500 hover:bg-brand-600 text-white font-semibold transition-colors shadow-theme-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
                                         {currentOrderId ? "Update Order" : "Place Order"}
                                     </button>
-                                    {currentOrderId ? (
+
+                                    {(!isAdmin && !isOwner) && (
+                                        <div className="p-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-lg text-center text-amber-700 dark:text-amber-400 text-xs font-medium">
+                                            View Only: This order belongs to another user.
+                                        </div>
+                                    )}
+
+                                    {isAdmin && currentOrderId ? (
                                         <button onClick={() => {
                                             if (!currentOrderId) return;
-
+                                            const isDineIn = orderType === 'Dine In';
                                             setConfirmation({
                                                 isOpen: true,
-                                                title: "Confirm Close",
-                                                message: "Close this table and complete the order?",
+                                                title: isDineIn ? "Confirm Close" : "Confirm Close Order",
+                                                message: isDineIn
+                                                    ? "Close this table and complete the order?"
+                                                    : "Are you sure you want to Close this order?",
                                                 onConfirm: async () => {
                                                     try {
                                                         const res = await fetch(`/api/orders/${currentOrderId}/close`, { method: 'POST' });
                                                         if (res.ok) {
-                                                            showAlertDialog('Table closed');
+                                                            showAlertDialog(isDineIn ? 'Table closed' : 'Order closed');
                                                             // clear cart and selected table
                                                             setCart([]);
                                                             setCurrentOrderId(null);
@@ -430,16 +464,16 @@ export default function SalePage() {
                                                         } else {
                                                             const data = await res.json();
                                                             console.error('Close failed', data);
-                                                            showAlertDialog('Failed to close table');
+                                                            showAlertDialog(data.message || (isDineIn ? 'Failed to close table' : 'Failed to close order'));
                                                         }
                                                     } catch (err) {
                                                         console.error(err);
-                                                        showAlertDialog('Error closing table');
+                                                        showAlertDialog(isDineIn ? 'Error closing table' : 'Error closing order');
                                                     }
                                                 }
                                             });
-                                        }} className="py-2 px-3 rounded border bg-white hover:bg-gray-50 transition-colors">
-                                            Close Table
+                                        }} className="w-full py-2 px-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-medium">
+                                            {orderType === 'Dine In' ? "Close Table" : "Close Order"}
                                         </button>
                                     ) : null}
                                 </div>

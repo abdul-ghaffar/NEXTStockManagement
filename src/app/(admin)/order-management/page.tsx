@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from 'next/link';
 import { useRouter } from "next/navigation";
 import { FaEye } from "react-icons/fa";
+import { useAuth } from "@/context/AuthContext";
 
 type Sale = {
     ID: number;
@@ -14,10 +15,12 @@ type Sale = {
     PhoneNo: string;
     DeliveryAddress: string;
     Closed: boolean;
+    UserID?: number | null;
 };
 
 export default function SalesListPage() {
     const router = useRouter();
+    const { user: currentUser } = useAuth();
     const [sales, setSales] = useState<Sale[]>([]);
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(1);
@@ -70,7 +73,7 @@ export default function SalesListPage() {
     };
 
     return (
-        <div className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow min-h-[80vh]">
+        <div className="p-4 bg-white dark:bg-gray-900 rounded-lg shadow min-h-[80vh] border border-gray-100 dark:border-gray-800">
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-2xl font-bold dark:text-white">Sales List</h1>
                 <Link href="/order-management/sale" className="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded">
@@ -141,7 +144,7 @@ export default function SalesListPage() {
                             <tr><td colSpan={6} className="text-center py-6">No sales found</td></tr>
                         ) : (
                             sales.map((sale) => (
-                                <tr key={sale.ID} className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600">
+                                <tr key={sale.ID} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-white/[0.03] transition-colors">
                                     <td className="py-3 px-6 font-medium whitespace-nowrap">#{sale.ID}</td>
                                     <td className="py-3 px-6">{new Date(sale.SaleDate).toLocaleString()}</td>
                                     <td className="py-3 px-6 font-medium">{sale.ClientName || "-"}</td>
@@ -174,8 +177,11 @@ export default function SalesListPage() {
                                     </td>
                                     <td className="py-3 px-6 text-center">
                                         <Link href={`/order-management/sale?id=${sale.ID}`}>
-                                            <button className="text-blue-500 hover:text-blue-700 p-2" title="View/Edit Order">
+                                            <button className="text-blue-500 hover:text-blue-700 p-2 flex items-center justify-center gap-1 mx-auto" title="View/Edit Order">
                                                 <FaEye size={18} />
+                                                <span className="text-xs font-semibold">
+                                                    {(sale.Closed || (!currentUser?.IsAdmin && sale.UserID && sale.UserID !== currentUser?.ID)) ? 'View' : 'Edit'}
+                                                </span>
                                             </button>
                                         </Link>
                                     </td>

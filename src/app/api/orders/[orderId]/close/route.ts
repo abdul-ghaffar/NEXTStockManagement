@@ -8,7 +8,7 @@ export async function POST(request: Request, context: { params: any }) {
 
         // Dynamic import to avoid ESM/CJS interop issues when the module is hot-reloaded in dev.
         const mod = await import('@/db/orders');
-    const closeOrder = (mod as any).closeOrder ?? (mod as any).default?.closeOrder;
+        const closeOrder = (mod as any).closeOrder ?? (mod as any).default?.closeOrder;
         if (typeof closeOrder !== 'function') {
             console.error('closeOrder is not a function in orders module', Object.keys(mod));
             return NextResponse.json({ message: 'closeOrder not available' }, { status: 500 });
@@ -32,7 +32,7 @@ export async function POST(request: Request, context: { params: any }) {
             return NextResponse.json({ message: 'Forbidden: admin required' }, { status: 403 });
         }
 
-        const result = await closeOrder(orderId);
+        const result = await closeOrder(orderId, user);
         return NextResponse.json(result);
     } catch (err) {
         console.error('Close order API error:', err);
