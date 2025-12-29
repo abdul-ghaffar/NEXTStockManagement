@@ -4,6 +4,8 @@ import './globals.css';
 import { SidebarProvider } from '@/context/SidebarContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { AuthProvider } from '@/context/AuthContext';
+import { RealTimeProvider } from '@/components/RealTimeProvider';
+import { NotificationToaster } from '@/components/NotificationToaster';
 
 const outfit = Outfit({
   subsets: ["latin"],
@@ -19,7 +21,12 @@ export default function RootLayout({
       <body className={`${outfit.className} dark:bg-gray-900`}>
         <ThemeProvider>
           <AuthProvider>
-            <SidebarProvider>{children}</SidebarProvider>
+            <RealTimeProvider>
+              <SidebarProvider>
+                {children}
+                <NotificationToaster />
+              </SidebarProvider>
+            </RealTimeProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

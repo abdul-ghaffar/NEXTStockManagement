@@ -8,6 +8,9 @@ import CategoryList from "@/components/sales/CategoryList";
 import ItemGrid from "@/components/sales/ItemGrid";
 import Cart from "@/components/sales/Cart";
 import { FaExpand, FaCompress, FaArrowUp, FaShoppingCart, FaCheck, FaChevronDown, FaChevronUp } from "react-icons/fa";
+import { toast } from "react-toastify";
+import { useRealTime } from "@/components/RealTimeProvider";
+import { EVENTS } from "@/lib/events";
 
 type Table = { id: number; name: string; isActive?: boolean; saleId?: number | null; saleTotal?: number | null };
 type Category = { id: number; name: string };
@@ -17,6 +20,7 @@ export default function SalePage() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { user } = useAuth();
+    const { subscribe } = useRealTime();
     const isAdmin = !!user?.IsAdmin;
     const [step, setStep] = useState<"tables" | "items">(searchParams.get('id') ? "items" : "tables");
     const [tables, setTables] = useState<Table[]>([]);
@@ -47,6 +51,14 @@ export default function SalePage() {
         onConfirm: () => { },
     });
 
+    const initialOrderState = React.useRef<{
+        cart: string;
+        orderType: string;
+        phone: string;
+        address: string;
+        tableName: string;
+    } | null>(null);
+
     useEffect(() => {
         fetch('/api/tables').then(r => r.json()).then(setTables).catch(err => console.error(err));
         fetch('/api/categories').then(r => r.json()).then(setCategories).catch(err => console.error(err));
@@ -61,10 +73,15 @@ export default function SalePage() {
                 .then(data => {
                     if (data.sale) {
                         setCurrentOrderId(data.sale.ID);
-                        setOrderType(data.sale.OrderType || 'Dine In');
-                        setCustomerPhone(data.sale.PhoneNo || data.sale.phone || data.sale.Phone || '');
-                        setDeliveryAddress(data.sale.DeliveryAddress || data.sale.address || data.sale.Address || '');
-                        if (data.sale.OrderType === 'Home Delivery') {
+                        const type = data.sale.OrderType || 'Dine In';
+                        const phone = data.sale.PhoneNo || data.sale.phone || data.sale.Phone || '';
+                        const address = data.sale.DeliveryAddress || data.sale.address || data.sale.Address || '';
+                        const tableName = data.sale.TableName || data.sale.tableName || '';
+
+                        setOrderType(type);
+                        setCustomerPhone(phone);
+                        setDeliveryAddress(address);
+                        if (type === 'Home Delivery') {
                             setIsDeliveryOpen(true);
                         }
                         setIsOrderClosed(!!data.sale.Closed);
@@ -86,13 +103,22 @@ export default function SalePage() {
                         console.log("Setting cart with:", loadedItems);
                         setCart(loadedItems);
 
+                        // Capture initial state for change detection
+                        initialOrderState.current = {
+                            cart: JSON.stringify(loadedItems.map((c: any) => ({ itemCode: c.itemCode, qty: c.qty }))),
+                            orderType: type,
+                            phone: phone,
+                            address: address,
+                            tableName: tableName
+                        };
+
+                        // Auto-expand if requested
+                        if (searchParams.get('expanded') === 'true') {
+                            setIsCartExpanded(true);
+                        }
+
                         // Switch to items view
                         setStep('items');
-
-                        // If Dine In and NOT closed, we might want to select the table (if we had specific table binding).
-                        // Note: Our current tables API loads tables with their saleId/total for active tables.
-                        // Setting selectedTable manually here might overlap with `fetch('/api/tables')` which syncs status.
-                        // Ideally, we find the table with data.sale.ID and set it.
                     }
                 })
                 .catch(err => console.error("Err loading order", err));
@@ -109,6 +135,26 @@ export default function SalePage() {
             }
         }
     }, [currentOrderId, tables, orderType, isOrderClosed]);
+
+    // Real-time table status refresh
+    useEffect(() => {
+        const refreshTables = () => {
+            fetch('/api/tables')
+                .then(r => r.json())
+                .then(setTables)
+                .catch(err => console.error("Real-time table refresh error:", err));
+        };
+
+        const unsubCreated = subscribe(EVENTS.ORDER_CREATED, refreshTables);
+        const unsubUpdated = subscribe(EVENTS.ORDER_UPDATED, refreshTables);
+        const unsubClosed = subscribe(EVENTS.ORDER_CLOSED, refreshTables);
+
+        return () => {
+            unsubCreated();
+            unsubUpdated();
+            unsubClosed();
+        };
+    }, [subscribe]);
 
     useEffect(() => {
         if (!selectedCategory) {
@@ -160,6 +206,20 @@ export default function SalePage() {
                     } else {
                         setIsOwner(true);
                     }
+
+                    // Update initial state for change detection when manually selecting a table
+                    const type = data.sale.OrderType || 'Dine In';
+                    const phone = data.sale.PhoneNo || data.sale.phone || data.sale.Phone || '';
+                    const address = data.sale.DeliveryAddress || data.sale.address || data.sale.Address || '';
+                    const tableName = data.sale.TableName || data.sale.tableName || '';
+
+                    initialOrderState.current = {
+                        cart: JSON.stringify(mapped.map((c: any) => ({ itemCode: c.itemCode, qty: c.qty }))),
+                        orderType: type,
+                        phone: phone,
+                        address: address,
+                        tableName: tableName
+                    };
                 } else {
                     console.error('Failed to load order details');
                 }
@@ -215,6 +275,28 @@ export default function SalePage() {
             address: orderType === 'Home Delivery' ? deliveryAddress : undefined
         };
 
+        // Smart Update: Detection of changes
+        if (currentOrderId && initialOrderState.current) {
+            const currentOrderStr = JSON.stringify(cart.map(c => ({ itemCode: c.itemCode, qty: c.qty })));
+
+            const checks = {
+                cart: currentOrderStr !== initialOrderState.current.cart,
+                orderType: orderType !== initialOrderState.current.orderType,
+                phone: (orderType === 'Home Delivery' ? customerPhone : '') !== initialOrderState.current.phone,
+                address: (orderType === 'Home Delivery' ? deliveryAddress : '') !== initialOrderState.current.address,
+                tableName: (selectedTable?.name || orderType) !== initialOrderState.current.tableName
+            };
+
+            const isChanged = Object.values(checks).some(b => b);
+
+            if (!isChanged) {
+                console.log("No changes detected. Debug:", checks);
+                toast.info("No changes detected in the order.");
+                return;
+            }
+            console.log("Changes detected. Debug:", checks);
+        }
+
         try {
             const res = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sale) });
             const data = await res.json();
@@ -255,7 +337,16 @@ export default function SalePage() {
                 console.error('Failed to refresh tables after save', err);
             }
 
-            showAlertDialog('Order saved');
+            toast.success(currentOrderId ? "Order updated successfully!" : "Order placed successfully!");
+
+            // Update initial state to the newly saved state
+            initialOrderState.current = {
+                cart: JSON.stringify(cart.map(c => ({ itemCode: c.itemCode, qty: c.qty }))),
+                orderType: orderType,
+                phone: orderType === 'Home Delivery' ? customerPhone : '',
+                address: orderType === 'Home Delivery' ? deliveryAddress : '',
+                tableName: selectedTable?.name || orderType
+            };
 
             // If Admin, redirect to list. If not, reset for next order.
             if (isAdmin) {
@@ -447,7 +538,7 @@ export default function SalePage() {
                                                     try {
                                                         const res = await fetch(`/api/orders/${currentOrderId}/close`, { method: 'POST' });
                                                         if (res.ok) {
-                                                            showAlertDialog(isDineIn ? 'Table closed' : 'Order closed');
+                                                            toast.success(isDineIn ? 'Table closed successfully' : 'Order closed successfully');
                                                             // clear cart and selected table
                                                             setCart([]);
                                                             setCurrentOrderId(null);

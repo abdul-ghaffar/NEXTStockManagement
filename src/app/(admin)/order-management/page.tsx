@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useRouter } from "next/navigation";
 import { FaEye } from "react-icons/fa";
 import { useAuth } from "@/context/AuthContext";
+import { useRealTime } from "@/components/RealTimeProvider";
+import { EVENTS } from "@/lib/events";
 
 type Sale = {
     ID: number;
@@ -21,6 +23,7 @@ type Sale = {
 export default function SalesListPage() {
     const router = useRouter();
     const { user: currentUser } = useAuth();
+    const { subscribe } = useRealTime();
     const [sales, setSales] = useState<Sale[]>([]);
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(1);
@@ -28,6 +31,28 @@ export default function SalesListPage() {
     const [searchId, setSearchId] = useState("");
     const [orderType, setOrderType] = useState("All");
     const [status, setStatus] = useState("All");
+
+    useEffect(() => {
+        // Subscribe to real-time events to refresh the list
+        const unsubscribeCreated = subscribe(EVENTS.ORDER_CREATED, () => {
+            console.log("Refreshing sales list due to new order...");
+            fetchSales();
+        });
+        const unsubscribeUpdated = subscribe(EVENTS.ORDER_UPDATED, () => {
+            console.log("Refreshing sales list due to order update...");
+            fetchSales();
+        });
+        const unsubscribeClosed = subscribe(EVENTS.ORDER_CLOSED, () => {
+            console.log("Refreshing sales list due to order closure...");
+            fetchSales();
+        });
+
+        return () => {
+            unsubscribeCreated();
+            unsubscribeUpdated();
+            unsubscribeClosed();
+        };
+    }, [subscribe]);
 
     useEffect(() => {
         // Check Access

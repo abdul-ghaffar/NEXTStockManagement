@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createOrder, updateOrder } from "@/db/orders";
 import { verifyToken } from "@/lib/jwt";
+import { appEmitter, EVENTS } from "@/lib/events";
 
 export async function POST(request: Request) {
     try {
@@ -28,6 +29,21 @@ export async function POST(request: Request) {
             const id = body.orderId || body.OrderID;
             try {
                 const result = await updateOrder(Number(id), body, user ? { ID: user.ID, IsAdmin: !!user.IsAdmin } : undefined);
+
+                // Emit event for updated order (Non-blocking)
+                try {
+                    appEmitter.emit(EVENTS.ORDER_UPDATED, {
+                        orderId: id,
+                        tableName: body.tableName,
+                        user: user ? user.Name || user.Username || "User" : "System",
+                        userId: user?.ID,
+                        amount: body.netTotal,
+                        type: body.orderType
+                    });
+                } catch (e) {
+                    console.error("Notification Error:", e);
+                }
+
                 return NextResponse.json(result);
             } catch (err: any) {
                 if (err.message?.includes("FORBIDDEN")) {
@@ -43,11 +59,30 @@ export async function POST(request: Request) {
         }
 
         const result = await createOrder(body);
+
+        // Emit event for new order (Non-blocking)
+        try {
+            appEmitter.emit(EVENTS.ORDER_CREATED, {
+                orderId: result.saleID,
+                tableName: body.tableName,
+                user: user ? user.Name || user.Username || "User" : "System",
+                userId: user?.ID,
+                amount: body.netTotal,
+                type: body.orderType
+            });
+        } catch (e) {
+            console.error("Notification Error:", e);
+        }
+
         return NextResponse.json(result);
-    } catch (error) {
-        console.error("Order API Error:", error);
+    } catch (error: any) {
+        console.error("Order API Error Details:", {
+            message: error.message,
+            stack: error.stack,
+            code: error.code
+        });
         return NextResponse.json(
-            { message: "Failed to create order" },
+            { message: `Failed to create order: ${error.message || 'Unknown error'}` },
             { status: 500 }
         );
     }

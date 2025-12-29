@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { appEmitter, EVENTS } from "@/lib/events";
 
 export async function POST(request: Request, context: { params: any }) {
     try {
@@ -33,6 +34,18 @@ export async function POST(request: Request, context: { params: any }) {
         }
 
         const result = await closeOrder(orderId, user);
+
+        // Emit event for closed order (Non-blocking)
+        try {
+            appEmitter.emit(EVENTS.ORDER_CLOSED, {
+                orderId,
+                user: user ? user.Name || user.Username || "User" : "System",
+                userId: user?.ID
+            });
+        } catch (e) {
+            console.error("Notification Error:", e);
+        }
+
         return NextResponse.json(result);
     } catch (err) {
         console.error('Close order API error:', err);
