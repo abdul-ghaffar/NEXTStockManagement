@@ -1,4 +1,5 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron');
+const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
 const waitOn = require('wait-on');
@@ -22,7 +23,25 @@ function createWindow() {
 
     const url = isDev
         ? 'http://localhost:4001'
-        : 'http://localhost:4001'; // In both cases we proxy to the next server
+        : 'http://localhost:4001';
+
+    function getLocalIP() {
+        const interfaces = os.networkInterfaces();
+        for (const interfaceName in interfaces) {
+            const networkInterface = interfaces[interfaceName];
+            for (const details of networkInterface) {
+                if (details.family === 'IPv4' && !details.internal) {
+                    return details.address;
+                }
+            }
+        }
+        return 'localhost';
+    }
+
+    ipcMain.handle('get-network-url', () => {
+        const ip = getLocalIP();
+        return `http://${ip}:4001`;
+    });
 
     if (isDev) {
         console.log("-----------------------------------------");
@@ -72,7 +91,7 @@ function startNextServer(callback) {
     // But we might need to copy .env to the resources folder and tell Next to use it
     const envPath = path.join(resourcesPath, '.env');
 
-    serverProcess = spawn('node', [nextBin, 'start', '-p', '4001'], {
+    serverProcess = spawn('node', [nextBin, 'start', '-p', '4001', '-H', '0.0.0.0'], {
         cwd: appPath,
         env: {
             ...process.env,

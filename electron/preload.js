@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld(
             // Deliberately strip event as it includes `sender` 
             ipcRenderer.on(channel, (event, ...args) => func(...args));
         }
-    }
+    },
+    getNetworkUrl: () => ipcRenderer.invoke('get-network-url')
 }
 );
