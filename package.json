@@ -2,11 +2,14 @@
   "name": "free-nextjs-admin-dashboard",
   "version": "2.2.1",
   "private": true,
+  "main": "electron/main.js",
   "scripts": {
     "dev": "next dev -p 4001",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "electron:dev": "concurrently \"pnpm run dev\" \"electron .\"",
+    "electron:build": "next build && electron-builder"
   },
   "dependencies": {
     "@fullcalendar/core": "^6.1.19",
@@ -43,11 +46,16 @@
     "@types/react": "^19.2.1",
     "@types/react-dom": "^19.2.1",
     "@types/react-transition-group": "^4.4.12",
+    "concurrently": "^9.2.1",
+    "electron": "^33.2.1",
+    "electron-builder": "^24.13.3",
+    "electron-is-dev": "^3.0.1",
     "eslint": "^9.39.1",
     "eslint-config-next": "16.0.7",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.17",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "wait-on": "^8.0.1"
   },
   "engines": {},
   "overrides": {
@@ -58,6 +66,39 @@
     "@react-jvectormap/world": {
       "react": "^16.8.0 || ^17 || ^18 || ^19",
       "react-dom": "^16.8.0 || ^17 || ^18 || ^19"
+    }
+  },
+  "build": {
+    "appId": "com.tailadmin.pos",
+    "productName": "TailAdmin POS",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "public/favicon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "files": [
+      "**/*",
+      "!.next/cache",
+      "!dist",
+      "!electron/builder.json"
+    ],
+    "extraResources": [
+      ".env"
+    ],
+    "asar": true,
+    "protocols": {
+      "name": "tailadmin-pos",
+      "schemes": [
+        "pos"
+      ]
     }
   }
 }
