@@ -7,21 +7,43 @@ import { Modal } from "@/components/ui/modal";
 const NetworkAccess: React.FC = () => {
     const [isOpen, setIsOpen] = useState(false);
     const [networkUrl, setNetworkUrl] = useState<string>("");
+    const [isLoading, setIsLoading] = useState(false);
 
-    useEffect(() => {
-        const fetchUrl = async () => {
-            if (window.api && window.api.getNetworkUrl) {
+    const fetchUrl = async () => {
+        setIsLoading(true);
+        try {
+            // Priority 1: Electron Bridge
+            if (typeof window !== "undefined" && window.api && window.api.getNetworkUrl) {
                 const url = await window.api.getNetworkUrl();
                 setNetworkUrl(url);
+            } else {
+                // Priority 2: API Fallback (Browser)
+                const response = await fetch("/api/network-url");
+                const data = await response.json();
+                if (data.url) {
+                    setNetworkUrl(data.url);
+                }
             }
-        };
+        } catch (error) {
+            console.error("Failed to fetch network URL:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
         fetchUrl();
     }, []);
+
+    const handleOpen = () => {
+        setIsOpen(true);
+        fetchUrl();
+    };
 
     return (
         <>
             <button
-                onClick={() => setIsOpen(true)}
+                onClick={handleOpen}
                 className="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-brand-500 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400"
                 title="Network Access"
             >
@@ -71,22 +93,38 @@ const NetworkAccess: React.FC = () => {
                     </p>
 
                     <div className="mb-6 flex justify-center rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-200 dark:ring-gray-800">
-                        {networkUrl ? (
+                        {isLoading ? (
+                            <div className="flex h-[200px] w-[200px] items-center justify-center text-gray-400">
+                                <div className="animate-pulse">Loading...</div>
+                            </div>
+                        ) : networkUrl ? (
                             <QRCodeSVG value={networkUrl} size={200} />
                         ) : (
-                            <div className="flex h-[200px] w-[200px] items-center justify-center text-gray-400">
-                                Loading...
+                            <div className="flex h-[200px] w-[200px] flex-col items-center justify-center text-gray-400">
+                                <p>Failed to detect URL</p>
+                                <button onClick={fetchUrl} className="mt-2 text-brand-500 underline text-xs">
+                                    Try again
+                                </button>
                             </div>
                         )}
                     </div>
 
-                    <div className="rounded-lg bg-gray-50 p-3 dark:bg-white/[0.03]">
+                    <div className="rounded-lg bg-gray-50 p-3 dark:bg-white/[0.03] relative group">
                         <p className="text-xs font-medium uppercase tracking-wider text-gray-400">
                             Network URL
                         </p>
-                        <p className="mt-1 font-mono text-sm font-semibold text-brand-600 dark:text-brand-400">
-                            {networkUrl || "Detecting..."}
+                        <p className="mt-1 font-mono text-sm font-semibold text-brand-600 dark:text-brand-400 break-all">
+                            {isLoading ? "Detecting..." : (networkUrl || "Not detected")}
                         </p>
+                        {!isLoading && (
+                            <button
+                                onClick={fetchUrl}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-brand-500 p-1 rounded-md transition-colors"
+                                title="Refresh URL"
+                            >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
+                            </button>
+                        )}
                     </div>
 
                     <button

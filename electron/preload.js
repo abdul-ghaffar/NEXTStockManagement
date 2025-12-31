@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld(
             ipcRenderer.on(channel, (event, ...args) => func(...args));
         }
     },
-    getNetworkUrl: () => ipcRenderer.invoke('get-network-url')
+    getNetworkUrl: () => ipcRenderer.invoke('get-network-url'),
+    printOrder: (htmlContent) => ipcRenderer.invoke('print-order', htmlContent)
 }
 );

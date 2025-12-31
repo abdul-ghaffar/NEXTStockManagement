@@ -3,10 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from 'next/link';
 import { useRouter } from "next/navigation";
-import { FaEye } from "react-icons/fa";
+import { FaEye, FaPrint } from "react-icons/fa";
 import { useAuth } from "@/context/AuthContext";
 import { useRealTime } from "@/components/RealTimeProvider";
 import { EVENTS } from "@/lib/events";
+import { generateReceiptHtml } from "@/lib/receipt";
+import { toast } from "react-toastify";
 
 type Sale = {
     ID: number;
@@ -88,6 +90,36 @@ export default function SalesListPage() {
             console.error(error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handlePrint = async (sale: Sale) => {
+        try {
+            const res = await fetch(`/api/orders/${sale.ID}`);
+            if (!res.ok) throw new Error("Failed to fetch order details");
+            const data = await res.json();
+
+            const html = await generateReceiptHtml(data.sale, data.items);
+
+            if (window.api && window.api.printOrder) {
+                const result = await window.api.printOrder(html);
+                if (result.success) {
+                    toast.success(`Printing order #${sale.ID}...`);
+                } else {
+                    toast.error(`Print failed: ${result.error}`);
+                }
+            } else {
+                // Fallback for browser testing
+                const printWindow = window.open('', '_blank');
+                if (printWindow) {
+                    printWindow.document.write(html);
+                    printWindow.document.close();
+                    printWindow.print();
+                }
+            }
+        } catch (error: any) {
+            console.error("Print error:", error);
+            toast.error("Error preparing receipt for print");
         }
     };
 
@@ -201,14 +233,24 @@ export default function SalesListPage() {
                                         {typeof sale.TotalAmount === 'number' ? sale.TotalAmount.toFixed(2) : sale.TotalAmount}
                                     </td>
                                     <td className="py-3 px-6 text-center">
-                                        <Link href={`/order-management/sale?id=${sale.ID}`}>
-                                            <button className="text-blue-500 hover:text-blue-700 p-2 flex items-center justify-center gap-1 mx-auto" title="View/Edit Order">
-                                                <FaEye size={18} />
-                                                <span className="text-xs font-semibold">
-                                                    {(sale.Closed || (!currentUser?.IsAdmin && sale.UserID && sale.UserID !== currentUser?.ID)) ? 'View' : 'Edit'}
-                                                </span>
+                                        <div className="flex items-center justify-center gap-2">
+                                            <Link href={`/order-management/sale?id=${sale.ID}`}>
+                                                <button className="text-blue-500 hover:text-blue-700 p-2 flex items-center justify-center gap-1" title="View/Edit Order">
+                                                    <FaEye size={18} />
+                                                    <span className="text-xs font-semibold">
+                                                        {(sale.Closed || (!currentUser?.IsAdmin && sale.UserID && sale.UserID !== currentUser?.ID)) ? 'View' : 'Edit'}
+                                                    </span>
+                                                </button>
+                                            </Link>
+                                            <button
+                                                onClick={() => handlePrint(sale)}
+                                                className="text-gray-600 hover:text-brand-500 p-2 flex items-center justify-center gap-1"
+                                                title="Print Receipt"
+                                            >
+                                                <FaPrint size={18} />
+                                                <span className="text-xs font-semibold">Print</span>
                                             </button>
-                                        </Link>
+                                        </div>
                                     </td>
                                 </tr>
                             ))

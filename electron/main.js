@@ -29,9 +29,12 @@ function createWindow() {
         const interfaces = os.networkInterfaces();
         for (const interfaceName in interfaces) {
             const networkInterface = interfaces[interfaceName];
-            for (const details of networkInterface) {
-                if (details.family === 'IPv4' && !details.internal) {
-                    return details.address;
+            if (networkInterface) {
+                for (const details of networkInterface) {
+                    // Check for IPv4 and ensure it's not internal (127.0.0.1)
+                    if (details.family === 'IPv4' && !details.internal) {
+                        return details.address;
+                    }
                 }
             }
         }
@@ -40,7 +43,35 @@ function createWindow() {
 
     ipcMain.handle('get-network-url', () => {
         const ip = getLocalIP();
+        console.log(`ELECTRON: Detected local IP: ${ip}`);
         return `http://${ip}:4001`;
+    });
+
+    ipcMain.handle('print-order', async (event, htmlContent) => {
+        const printWindow = new BrowserWindow({
+            show: false,
+            webPreferences: {
+                nodeIntegration: true,
+                contextIsolation: false
+            }
+        });
+
+        await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
+
+        return new Promise((resolve, reject) => {
+            printWindow.webContents.print({
+                silent: false, // Set to true for auto-print if preferred
+                printBackground: true,
+                deviceName: '' // Leave empty for default or let user pick
+            }, (success, errorType) => {
+                printWindow.close();
+                if (success) {
+                    resolve({ success: true });
+                } else {
+                    reject({ success: false, error: errorType });
+                }
+            });
+        });
     });
 
     if (isDev) {
