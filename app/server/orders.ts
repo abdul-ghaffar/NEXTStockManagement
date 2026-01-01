@@ -289,3 +289,77 @@ export async function getOrder(id: number) {
         }))
     };
 }
+
+export async function closeManyOrders(orderIds: number[], currentUser?: { IsAdmin: boolean }) {
+    if (currentUser && !currentUser.IsAdmin) {
+        throw new Error("FORBIDDEN: Only administrators can close orders.");
+    }
+    if (orderIds.length === 0) return { success: true, count: 0 };
+
+    // Validate IDs
+    const safeIds = orderIds.map(id => Number(id)).filter(id => !isNaN(id));
+    if (safeIds.length === 0) return { success: true, count: 0 };
+    const idsList = safeIds.join(',');
+
+    const pool = await getPool();
+    const transaction = new sql.Transaction(pool);
+
+    try {
+        await transaction.begin();
+
+        // 1. Update Area IsActive = 0 for tables linked to these orders
+        await new sql.Request(transaction).query(`
+            UPDATE [dbo].[Area]
+            SET IsActive = 0
+            WHERE ID IN (SELECT AreaID FROM [dbo].[Sale] WHERE ID IN (${idsList}))
+        `);
+
+        // 2. Close orders
+        await new sql.Request(transaction).query(`
+            UPDATE [dbo].[Sale]
+            SET Closed = 1
+            WHERE ID IN (${idsList})
+        `);
+
+        await transaction.commit();
+        return { success: true, count: safeIds.length };
+    } catch (err) {
+        try { await transaction.rollback(); } catch (_) { }
+        console.error('Bulk close error:', err);
+        throw err;
+    }
+}
+
+export async function closeAllRunningOrders(currentUser?: { IsAdmin: boolean }) {
+    if (currentUser && !currentUser.IsAdmin) {
+        throw new Error("FORBIDDEN: Only administrators can close orders.");
+    }
+
+    const pool = await getPool();
+    const transaction = new sql.Transaction(pool);
+
+    try {
+        await transaction.begin();
+
+        // 1. Free all tables currently linked to running orders
+        await new sql.Request(transaction).query(`
+            UPDATE [dbo].[Area]
+            SET IsActive = 0
+            WHERE ID IN (SELECT AreaID FROM [dbo].[Sale] WHERE Closed = 0)
+        `);
+
+        // 2. Close all running orders
+        const result = await new sql.Request(transaction).query(`
+            UPDATE [dbo].[Sale]
+            SET Closed = 1
+            WHERE Closed = 0
+        `);
+
+        await transaction.commit();
+        return { success: true, count: result.rowsAffected[0] };
+    } catch (err) {
+        try { await transaction.rollback(); } catch (_) { }
+        console.error('Close all error:', err);
+        throw err;
+    }
+}

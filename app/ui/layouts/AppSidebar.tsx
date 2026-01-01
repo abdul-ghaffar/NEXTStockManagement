@@ -30,12 +30,12 @@ const navItems: NavItem[] = [
   {
     name: "Products",
     icon: <ListIcon />,
-    subItems: [{ name: "Products", path: "/products", pro: false }],
+    path: "/products",
   },
   {
-    name: "Order Management",
+    name: "Sales",
     icon: <BoxCubeIcon />,
-    subItems: [{ name: "POS / Orders", path: "/order-management", pro: false }],
+    path: "/sale",
   },
 ];
 

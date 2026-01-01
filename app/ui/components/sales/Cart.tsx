@@ -12,17 +12,19 @@ export default function Cart({ items, onQty, onRemove }: { items: CartItem[]; on
                     <div className="text-center text-gray-400">Cart empty</div>
                 ) : (
                     items.map((it) => (
-                        <div key={it.id} className="flex flex-col md:flex-row items-start md:items-center justify-between py-2 min-h-16">
+                        <div key={it.id} className="flex flex-row items-center justify-between py-2">
                             <div className="flex-1 pr-2">
                                 <div className="font-medium text-sm text-gray-900 dark:text-white wrap-break-word" title={it.itemName}>{it.itemName}</div>
                                 <div className="text-xs text-gray-500 dark:text-gray-400">{it.price.toFixed(2)} x {it.qty}</div>
                             </div>
-                            <div className="mt-2 md:mt-0 flex items-center gap-2">
-                                <button aria-label={`Decrease ${it.itemName} quantity`} onClick={() => onQty(it.id, -1)} className="w-8 h-8 flex items-center justify-center bg-error-50 text-error-600 hover:bg-error-100 dark:bg-error-500/10 dark:text-error-400 dark:hover:bg-error-500/20 rounded-lg transition-colors">-</button>
-                                <div className="px-2 text-center font-semibold w-8 text-gray-900 dark:text-white">{it.qty}</div>
-                                <button aria-label={`Increase ${it.itemName} quantity`} onClick={() => onQty(it.id, 1)} className="w-8 h-8 flex items-center justify-center bg-success-50 text-success-600 hover:bg-success-100 dark:bg-success-500/10 dark:text-success-400 dark:hover:bg-success-500/20 rounded-lg transition-colors">+</button>
-                                <button onClick={() => onRemove(it.id)} className="ml-3 text-red-500 text-sm" aria-label={`Remove ${it.itemName}`}>
-                                    x
+                            <div className="flex items-center gap-2 ml-2 shrink-0">
+                                <button aria-label={`Decrease ${it.itemName} quantity`} onClick={() => onQty(it.id, -1)} className="w-8 h-8 flex items-center justify-center bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-700 rounded-lg transition-colors font-bold">-</button>
+                                <div className="px-1 text-center font-bold text-sm w-6 text-gray-900 dark:text-white">{it.qty}</div>
+                                <button aria-label={`Increase ${it.itemName} quantity`} onClick={() => onQty(it.id, 1)} className="w-8 h-8 flex items-center justify-center bg-teal-50 text-teal-600 hover:bg-teal-100 border border-teal-200 dark:bg-teal-900/20 dark:text-teal-400 dark:border-teal-800 dark:hover:bg-teal-900/30 rounded-lg transition-colors font-bold">+</button>
+                                <button onClick={() => onRemove(it.id)} className="ml-1 p-2 text-gray-400 hover:text-red-500 transition-colors" aria-label={`Remove ${it.itemName}`}>
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
                                 </button>
                             </div>
                         </div>

@@ -238,7 +238,7 @@ function SaleContent() {
     };
 
     const onSelectCategory = (c: Category) => {
-        if (selectedCategory?.id === c.id) {
+        if (c.id === -1 || selectedCategory?.id === c.id) {
             setSelectedCategory(null);
         } else {
             setSelectedCategory(c);
@@ -352,7 +352,7 @@ function SaleContent() {
 
             // If Admin, redirect to list. If not, reset for next order.
             if (isAdmin) {
-                router.push('/order-management');
+                router.push('/sale');
                 return;
             }
 
@@ -369,71 +369,96 @@ function SaleContent() {
         }
     };
 
+    {/* Order Type Selector Helper */ }
+    const OrderTypeSelector = (
+        <div className={`flex gap-2 bg-gray-100 dark:bg-gray-900 p-1 rounded-lg w-fit ${(isAdmin || isOwner) ? "" : "opacity-50 pointer-events-none grayscale-[0.5]"}`}>
+            {['Dine In', 'Take Away', 'Home Delivery'].filter(type => isAdmin || type === 'Dine In').map(type => (
+                <button
+                    key={type}
+                    onClick={() => {
+                        setOrderType(type);
+                        if (type === 'Dine In') {
+                            setStep('tables');
+                        } else {
+                            setStep('items');
+                            setSelectedTable(null);
+                            // If we were editing an existing table order, clear it
+                            if (currentOrderId) {
+                                setCart([]);
+                                setCurrentOrderId(null);
+                            }
+                        }
+                    }}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${orderType === type
+                        ? 'bg-white dark:bg-gray-800 shadow-theme-sm text-brand-500 dark:text-white border border-transparent'
+                        : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                        }`}
+                >
+                    {type}
+                </button>
+            ))}
+        </div>
+    );
+
     return (
-        <div className="p-4">
-            <div className="flex items-center justify-between mb-3">
-                <h1 className="text-xl font-bold text-gray-900 dark:text-white">Sale / POS</h1>
-                {isOrderClosed && (
+        <div className="">
+            {isOrderClosed && (
+                <div className="flex items-center justify-end mb-3">
                     <span className="bg-red-100 text-red-600 px-3 py-1 rounded-full text-sm font-bold animate-pulse">
                         ORDER CLOSED
                     </span>
-                )}
-            </div>
-
-            {/* Order Type Selector - Always visible */}
-            <div className={`flex gap-2 mb-4 bg-gray-100 dark:bg-gray-900 p-1.5 rounded-xl w-fit ${(isAdmin || isOwner) ? "" : "opacity-50 pointer-events-none grayscale-[0.5]"}`}>
-                {['Dine In', 'Take Away', 'Home Delivery'].filter(type => isAdmin || type === 'Dine In').map(type => (
-                    <button
-                        key={type}
-                        onClick={() => {
-                            setOrderType(type);
-                            if (type === 'Dine In') {
-                                setStep('tables');
-                            } else {
-                                setStep('items');
-                                setSelectedTable(null);
-                                // If we were editing an existing table order, clear it
-                                if (currentOrderId) {
-                                    setCart([]);
-                                    setCurrentOrderId(null);
-                                }
-                            }
-                        }}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${orderType === type
-                            ? 'bg-white dark:bg-gray-800 shadow-theme-sm text-brand-500 dark:text-white border border-transparent'
-                            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-                            }`}
-                    >
-                        {type}
-                    </button>
-                ))}
-            </div>
+                </div>
+            )}
 
             {step === 'tables' && (
                 <div>
-                    <h2 className="mb-2 font-medium text-gray-800 dark:text-white">Select Table</h2>
+                    <div className="mb-4">
+                        {OrderTypeSelector}
+                    </div>
+
                     <TableGrid tables={tables} onSelect={onSelectTable} />
                 </div>
             )}
 
             {step === 'items' && (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:h-[calc(100vh-100px)]">
                     {!isCartExpanded && (
-                        <div className="lg:col-span-2">
-                            <div className="mb-2 flex items-center justify-between">
-                                <div>
+                        <div className="lg:col-span-2 flex flex-col h-full overflow-hidden">
+                            <div className="flex-none">
+                                <div className="mb-3 flex flex-wrap items-center gap-3 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm p-3 rounded-2xl border border-gray-100 dark:border-gray-700/50 shadow-sm">
+                                    {/* Back Button */}
                                     {orderType === 'Dine In' && (
-                                        <>
-                                            <button onClick={() => { setStep('tables'); setSelectedTable(null); }} className="px-3 py-1 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded text-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Back</button>
-                                            <span className="ml-3 font-medium text-gray-800 dark:text-white">Table: {selectedTable?.name}</span>
-                                        </>
+                                        <button
+                                            onClick={() => { setStep('tables'); setSelectedTable(null); }}
+                                            className="px-3.5 py-2 border border-blue-200 dark:border-gray-600 bg-blue-50 dark:bg-gray-700 rounded-lg text-xs hover:bg-blue-100 dark:hover:bg-gray-600 transition-all flex items-center gap-2 font-bold text-blue-700 dark:text-gray-200 shadow-xs"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="size-3.5">
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+                                            </svg>
+                                            Back
+                                        </button>
+                                    )}
+
+                                    {/* Order Type Selector */}
+                                    <div className="h-full flex items-center">
+                                        {OrderTypeSelector}
+                                    </div>
+
+                                    {/* Table Name */}
+                                    {selectedTable && (
+                                        <div className="flex items-center gap-2 ml-auto">
+                                            <span className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider">Table</span>
+                                            <span className="px-4 py-1.5 bg-brand-500 text-white rounded-lg text-sm font-bold shadow-md shadow-brand-500/20">
+                                                {selectedTable.name}
+                                            </span>
+                                        </div>
                                     )}
                                 </div>
+
+                                <CategoryList categories={categories} onSelect={onSelectCategory} selectedCategoryId={selectedCategory?.id} />
                             </div>
 
-                            <CategoryList categories={categories} onSelect={onSelectCategory} selectedCategoryId={selectedCategory?.id} />
-
-                            <div className={`mt-3 ${(isAdmin || isOwner) ? "" : "opacity-50 pointer-events-none"}`}>
+                            <div className={`mt-2 h-[calc(100vh-220px)] lg:h-auto lg:flex-1 min-h-0 overflow-hidden ${(isAdmin || isOwner) ? "" : "opacity-50 pointer-events-none"}`}>
                                 <ItemGrid
                                     items={items}
                                     onAdd={addToCart}
@@ -444,10 +469,15 @@ function SaleContent() {
                         </div>
                     )}
 
-                    <div id="cart-section" className={isCartExpanded ? "lg:col-span-3" : ""}>
-                        <div className="border border-gray-200 dark:border-gray-800 p-3 rounded-xl bg-white dark:bg-gray-900 transition-all duration-300 shadow-theme-sm">
-                            <div className="flex items-center justify-between mb-2">
-                                <h3 className="font-medium text-gray-900 dark:text-white">Cart</h3>
+                    <div id="cart-section" className={`${isCartExpanded ? "lg:col-span-3" : ""} h-full flex flex-col overflow-hidden`}>
+                        <div className="border border-gray-200 dark:border-gray-800 p-3 rounded-xl bg-white dark:bg-gray-900 transition-all duration-300 shadow-theme-sm h-full flex flex-col overflow-hidden">
+                            <div className="flex items-center justify-between mb-2 flex-none">
+                                <h3 className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                                    Cart
+                                    <span className="text-sm text-gray-500 dark:text-gray-400 font-normal bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full border border-gray-200 dark:border-gray-700">
+                                        Items: {cart.reduce((acc, item) => acc + item.qty, 0)}
+                                    </span>
+                                </h3>
                                 <button
                                     onClick={() => setIsCartExpanded(!isCartExpanded)}
                                     className="p-1.5 text-gray-500 hover:text-brand-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
@@ -552,7 +582,7 @@ function SaleContent() {
                                                             setStep('tables');
                                                             // If redirected from list, maybe go back?
                                                             if (searchParams.get('id')) {
-                                                                router.push('/order-management');
+                                                                router.push('/sale');
                                                             }
                                                         } else {
                                                             const data = await res.json();
@@ -565,7 +595,7 @@ function SaleContent() {
                                                     }
                                                 }
                                             });
-                                        }} className="w-full py-2 px-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-medium">
+                                        }} className="w-full py-2.5 px-3 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/30 transition-colors font-bold shadow-sm">
                                             {orderType === 'Dine In' ? "Close Table" : "Close Order"}
                                         </button>
                                     ) : null}
@@ -610,10 +640,15 @@ function SaleContent() {
                 </button>
                 <button
                     onClick={() => document.getElementById('cart-section')?.scrollIntoView({ behavior: 'smooth' })}
-                    className="p-3 bg-brand-500 text-white rounded-full shadow-lg hover:bg-brand-600 transition-colors"
+                    className="p-3 bg-brand-500 text-white rounded-full shadow-lg hover:bg-brand-600 transition-colors relative"
                     aria-label="Scroll to cart"
                 >
                     <FaShoppingCart className="w-5 h-5" />
+                    {cart.reduce((acc, item) => acc + item.qty, 0) > 0 && (
+                        <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-white dark:border-gray-800">
+                            {cart.reduce((acc, item) => acc + item.qty, 0)}
+                        </span>
+                    )}
                 </button>
             </div>
         </div>
