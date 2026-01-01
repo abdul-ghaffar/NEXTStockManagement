@@ -369,9 +369,64 @@ function SaleContent() {
         }
     };
 
+    const orderTypeRef = React.useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleGlobalKeys = (e: KeyboardEvent) => {
+            // Alt + T: Focus Order Type
+            if (e.altKey && e.key.toLowerCase() === 't') {
+                e.preventDefault();
+                const buttons = orderTypeRef.current?.querySelectorAll('button');
+                if (buttons && buttons.length > 0) (buttons[0] as HTMLElement).focus();
+            }
+            // Alt + S: Focus Tables (if Dine In)
+            if (e.altKey && e.key.toLowerCase() === 's' && orderType === 'Dine In' && step === 'tables') {
+                e.preventDefault();
+                document.getElementById('table-grid-start')?.focus();
+            }
+            // F or /: Focus Search (if Items view)
+            if ((e.key.toLowerCase() === 'f' || e.key === '/') && step === 'items' && !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
+                e.preventDefault();
+                document.getElementById('item-search-input')?.focus();
+            }
+            // Ctrl + Enter: Place Update Order
+            if (e.ctrlKey && e.key === 'Enter') {
+                e.preventDefault();
+                placeOrder();
+            }
+            // Esc: Back to tables if in items and Dine In
+            if (e.key === 'Escape') {
+                if (step === 'items' && orderType === 'Dine In') {
+                    setStep('tables');
+                    setSelectedTable(null);
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleGlobalKeys);
+        return () => window.removeEventListener('keydown', handleGlobalKeys);
+    }, [step, orderType, cart, selectedTable, customerPhone, deliveryAddress, placeOrder]);
+
     {/* Order Type Selector Helper */ }
     const OrderTypeSelector = (
-        <div className={`flex gap-2 bg-gray-100 dark:bg-gray-900 p-1 rounded-lg w-fit ${(isAdmin || isOwner) ? "" : "opacity-50 pointer-events-none grayscale-[0.5]"}`}>
+        <div
+            ref={orderTypeRef}
+            className={`flex gap-2 bg-gray-100 dark:bg-gray-900 p-1 rounded-lg w-fit ${(isAdmin || isOwner) ? "" : "opacity-50 pointer-events-none grayscale-[0.5]"}`}
+            onKeyDown={(e) => {
+                if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                    const buttons = Array.from(e.currentTarget.querySelectorAll('button'));
+                    const current = document.activeElement as HTMLButtonElement;
+                    const idx = buttons.indexOf(current);
+                    if (idx !== -1) {
+                        e.preventDefault();
+                        const nextIdx = e.key === 'ArrowRight'
+                            ? (idx + 1) % buttons.length
+                            : (idx - 1 + buttons.length) % buttons.length;
+                        buttons[nextIdx].focus();
+                    }
+                }
+            }}
+        >
             {['Dine In', 'Take Away', 'Home Delivery'].filter(type => isAdmin || type === 'Dine In').map(type => (
                 <button
                     key={type}
@@ -382,14 +437,13 @@ function SaleContent() {
                         } else {
                             setStep('items');
                             setSelectedTable(null);
-                            // If we were editing an existing table order, clear it
                             if (currentOrderId) {
                                 setCart([]);
                                 setCurrentOrderId(null);
                             }
                         }
                     }}
-                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${orderType === type
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all focus:outline-none focus:ring-2 focus:ring-brand-500 ${orderType === type
                         ? 'bg-white dark:bg-gray-800 shadow-theme-sm text-brand-500 dark:text-white border border-transparent'
                         : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
                         }`}

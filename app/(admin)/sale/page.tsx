@@ -138,6 +138,19 @@ export default function SalesListPage() {
     // Note: I will need to replace the component body essentially to inject the UI comfortably.
 
     useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Alt + N or F2 for New Order
+            if ((e.altKey && e.key.toLowerCase() === 'n') || e.key === 'F2') {
+                e.preventDefault();
+                router.push('/sale/details');
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [router]);
+
+    useEffect(() => {
         // Subscribe to real-time events to refresh the list
         const unsubscribeCreated = subscribe(EVENTS.ORDER_CREATED, () => {
             console.log("Refreshing sales list due to new order...");

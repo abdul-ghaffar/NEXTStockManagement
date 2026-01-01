@@ -139,15 +139,41 @@ export default function TableGrid({ tables, onSelect }: { tables: Table[]; onSel
             </div>
 
             {/* responsive grid: 2 cols on xs, 3 on sm, 4 on md, 6 on lg+ */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-2.5 md:gap-3">
-                {filteredTables.map((t) => {
+            <div
+                className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-2.5 md:gap-3"
+                onKeyDown={(e) => {
+                    const keys = ['ArrowRight', 'ArrowLeft', 'ArrowUp', 'ArrowDown'];
+                    if (keys.includes(e.key)) {
+                        e.preventDefault();
+                        const buttons = Array.from(e.currentTarget.querySelectorAll('button'));
+                        const current = document.activeElement as HTMLButtonElement;
+                        const idx = buttons.indexOf(current);
+                        if (idx !== -1) {
+                            let nextIdx = idx;
+                            if (e.key === 'ArrowRight' || e.key === 'ArrowDown') nextIdx = (idx + 1) % buttons.length;
+                            if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') nextIdx = (idx - 1 + buttons.length) % buttons.length;
+                            buttons[nextIdx].focus();
+                        } else if (buttons.length > 0) {
+                            buttons[0].focus();
+                        }
+                    }
+                }}
+            >
+                {filteredTables.map((t, index) => {
                     const isRunning = t.isActive;
                     const isMine = t.userId === currentUser?.ID && isRunning;
 
                     return (
                         <button
                             key={t.id}
+                            id={index === 0 ? "table-grid-start" : undefined}
                             onClick={() => onSelect(t)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    onSelect(t);
+                                }
+                            }}
                             className={`w-full min-h-10 py-1.5 px-2 rounded-lg border text-center shadow-sm transition-all active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-brand-500/10 dark:focus:ring-brand-400/20 
                                     ${isMine
                                     ? 'bg-success-50 dark:bg-success-500/10 border-success-200 dark:border-success-500/20'

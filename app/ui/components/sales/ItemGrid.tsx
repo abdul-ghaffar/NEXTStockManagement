@@ -57,6 +57,7 @@ export default function ItemGrid({ items, onAdd, categoryName, onClearCategory }
                         </svg>
                     </span>
                     <input
+                        id="item-search-input"
                         type="text"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
@@ -89,12 +90,40 @@ export default function ItemGrid({ items, onAdd, categoryName, onClearCategory }
                         </div>
                     )}
 
-                    <div className="space-y-1">
+                    <div
+                        className="space-y-1"
+                        onKeyDown={(e) => {
+                            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                                e.preventDefault();
+                                // Select all focusable item rows (with role="button")
+                                const items = Array.from(e.currentTarget.querySelectorAll('[role="button"]'));
+                                const current = document.activeElement as HTMLElement;
+                                const idx = items.indexOf(current);
+
+                                if (idx !== -1) {
+                                    const nextIdx = e.key === 'ArrowDown'
+                                        ? (idx + 1) % items.length
+                                        : (idx - 1 + items.length) % items.length;
+                                    (items[nextIdx] as HTMLElement).focus();
+                                } else if (items.length > 0) {
+                                    (items[0] as HTMLElement).focus();
+                                }
+                            }
+                        }}
+                    >
                         {filtered.map((it, idx) => (
                             <div
                                 key={it.id}
-                                className={`group flex justify-between items-center p-2 rounded-xl transition-all cursor-pointer border shadow-sm ${getColor(idx)}`}
+                                tabIndex={0}
+                                role="button"
+                                className={`group flex justify-between items-center p-2 rounded-xl transition-all cursor-pointer border shadow-sm outline-none focus:ring-2 focus:ring-brand-500 ${getColor(idx)}`}
                                 onClick={() => onAdd(it)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        onAdd(it);
+                                    }
+                                }}
                             >
                                 <div className="flex flex-col">
                                     <span className="font-bold text-current text-sm">{it.itemName}</span>
