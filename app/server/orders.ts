@@ -1,5 +1,6 @@
 import * as sql from "mssql";
 import { getPool } from "./mssql";
+import { getSettings } from "./settings";
 
 export type OrderItem = {
     itemCode: string;
@@ -26,6 +27,21 @@ export async function createOrder(order: OrderData) {
     try {
         await transaction.begin();
 
+        // Fetch settings for charges
+        const settings = await getSettings();
+
+        // Calculate charges based on order type
+        let dispatchAmount = 0;
+        let deliveryCharges = 0;
+
+        if (order.orderType === 'Dine In') {
+            // For Dine In: Use percentage service charges
+            dispatchAmount = settings.PercentageServiceCharges || 0
+        } else if (order.orderType === 'Home Delivery') {
+            // For Home Delivery: Use fixed delivery charges
+            deliveryCharges = settings.FixDeliveryCharges || 0;
+        }
+
         // Insert into Sale table. Use columns that exist in your schema: ClientName, SaleDate, TotalAmount, AreaID (optional), OrderType, PhoneNo, DeliveryAddress
         const saleRequest = new sql.Request(transaction);
         saleRequest.input("ClientName", sql.NVarChar(200), order.tableName || "");
@@ -36,11 +52,13 @@ export async function createOrder(order: OrderData) {
         saleRequest.input("PhoneNo", sql.NVarChar(50), order.phone || null);
         saleRequest.input("DeliveryAddress", sql.NVarChar(500), order.address || null);
         saleRequest.input("UserID", sql.Int, order.userId || null);
+        saleRequest.input("DispatchAmount", sql.Decimal(18, 2), dispatchAmount);
+        saleRequest.input("DeliveryCharges", sql.Decimal(18, 2), deliveryCharges);
 
         const saleResult = await saleRequest.query(`
-            INSERT INTO [dbo].[Sale] (ClientName, SaleDate, TotalAmount, AreaID, OrderType, PhoneNo, DeliveryAddress, UserID)
+            INSERT INTO [dbo].[Sale] (ClientName, SaleDate, TotalAmount, AreaID, OrderType, PhoneNo, DeliveryAddress, UserID, DispatchAmount, DeliveryCharges)
             OUTPUT INSERTED.ID
-            VALUES (@ClientName, @SaleDate, @TotalAmount, @AreaID, @OrderType, @PhoneNo, @DeliveryAddress, @UserID)
+            VALUES (@ClientName, @SaleDate, @TotalAmount, @AreaID, @OrderType, @PhoneNo, @DeliveryAddress, @UserID, @DispatchAmount, @DeliveryCharges)
         `);
 
         const saleID = saleResult.recordset && saleResult.recordset[0] ? saleResult.recordset[0].ID : null;
@@ -107,6 +125,21 @@ export async function updateOrder(orderId: number, order: OrderData, currentUser
     try {
         await transaction.begin();
 
+        // Fetch settings for charges
+        const settings = await getSettings();
+
+        // Calculate charges based on order type
+        let dispatchAmount = 0;
+        let deliveryCharges = 0;
+
+        if (order.orderType === 'Dine In') {
+            // For Dine In: Use percentage service charges
+            dispatchAmount = settings.PercentageServiceCharges || 0;
+        } else if (order.orderType === 'Home Delivery') {
+            // For Home Delivery: Use fixed delivery charges
+            deliveryCharges = settings.FixDeliveryCharges || 0;
+        }
+
         // Update Sale header
         const updReq = new sql.Request(transaction);
         updReq.input('OrderID', sql.BigInt, orderId);
@@ -117,6 +150,8 @@ export async function updateOrder(orderId: number, order: OrderData, currentUser
         updReq.input("OrderType", sql.NVarChar(50), order.orderType || 'Dine In');
         updReq.input("PhoneNo", sql.NVarChar(50), order.phone || null);
         updReq.input("DeliveryAddress", sql.NVarChar(500), order.address || null);
+        updReq.input("DispatchAmount", sql.Decimal(18, 2), dispatchAmount);
+        updReq.input("DeliveryCharges", sql.Decimal(18, 2), deliveryCharges);
 
         await updReq.query(`
             UPDATE [dbo].[Sale]
@@ -126,7 +161,9 @@ export async function updateOrder(orderId: number, order: OrderData, currentUser
                 AreaID = @AreaID,
                 OrderType = @OrderType,
                 PhoneNo = @PhoneNo,
-                DeliveryAddress = @DeliveryAddress
+                DeliveryAddress = @DeliveryAddress,
+                DispatchAmount = @DispatchAmount,
+                DeliveryCharges = @DeliveryCharges
             WHERE ID = @OrderID
         `);
 

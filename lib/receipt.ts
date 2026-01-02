@@ -1,8 +1,46 @@
 import customersInfo from "@/config/customersInfo.json";
 
+async function getImageAsBase64(imagePath: string): Promise<string | null> {
+  try {
+    // For browser environment
+    if (typeof window !== 'undefined') {
+      const response = await fetch(imagePath);
+      const blob = await response.blob();
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    }
+    // For Node.js environment (Electron main process)
+    else {
+      const fs = await import('fs');
+      const path = await import('path');
+      const publicPath = path.join(process.cwd(), 'public', imagePath);
+
+      if (fs.existsSync(publicPath)) {
+        const imageBuffer = fs.readFileSync(publicPath);
+        const ext = path.extname(imagePath).toLowerCase();
+        const mimeType = ext === '.png' ? 'image/png' : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : 'image/jpeg';
+        return `data:${mimeType};base64,${imageBuffer.toString('base64')}`;
+      }
+    }
+  } catch (error) {
+    console.error('Error loading image:', error);
+  }
+  return null;
+}
+
 export async function generateReceiptHtml(sale: any, items: any[]) {
   const profile = "AbdulLaptop";
   const info = (customersInfo as any)[profile];
+
+  // Convert logo to base64 if it exists
+  let logoBase64 = null;
+  if (info.logo) {
+    logoBase64 = await getImageAsBase64(info.logo);
+  }
 
   const html = `
     <!DOCTYPE html>
@@ -36,6 +74,12 @@ export async function generateReceiptHtml(sale: any, items: any[]) {
         .totals { margin-top: 2mm; }
         .total-row { display: flex; justify-content: space-between; margin-bottom: 1mm; }
         .footer { margin-top: 5mm; font-size: 10px; }
+        .logo { 
+          max-width: 50mm; 
+          height: auto; 
+          margin: 0 auto 3mm auto; 
+          display: block;
+        }
         
         /* Ensure no colors/backgrounds interfere with thermal printing */
         * { background: transparent !important; color: #000 !important; }
@@ -43,9 +87,9 @@ export async function generateReceiptHtml(sale: any, items: any[]) {
     </head>
     <body>
       <div class="header text-center">
-        <h1 class="title font-bold">${info.Title}</h1>
+        ${logoBase64 ? `<img src="${logoBase64}" alt="Logo" class="logo" />` : ''}
         <div class="address">${info.Address}</div>
-        <div class="contact">Contact: ${info.Contact}</div>
+        <div class="contact">${info.Contact}</div>
       </div>
       
       <div class="divider"></div>
@@ -86,10 +130,29 @@ export async function generateReceiptHtml(sale: any, items: any[]) {
       <div class="divider"></div>
       
       <div class="totals text-right">
-        <div class="total-row font-bold">
+        <div class="total-row">
           <span>Net Total</span>
           <span>${sale.TotalAmount}</span>
         </div>
+        ${sale.DispatchAmount && sale.DispatchAmount > 0 ? `
+        <div class="total-row">
+          <span>Service Charges</span>
+          <span>${Number(sale.DispatchAmount).toFixed(0)}</span>
+        </div>
+        ` : ''}
+        ${sale.DeliveryCharges && sale.DeliveryCharges > 0 ? `
+        <div class="total-row">
+          <span>Delivery Charges</span>
+          <span>${Number(sale.DeliveryCharges).toFixed(0)}</span>
+        </div>
+        ` : ''}
+        ${(sale.DispatchAmount && sale.DispatchAmount > 0) || (sale.DeliveryCharges && sale.DeliveryCharges > 0) ? `
+        <div class="divider"></div>
+        <div class="total-row font-bold">
+          <span>Grand Total</span>
+          <span>${(Number(sale.TotalAmount) + Number(sale.DispatchAmount || 0) + Number(sale.DeliveryCharges || 0)).toFixed(0)}</span>
+        </div>
+        ` : ''}
       </div>
       
       <div class="divider"></div>
