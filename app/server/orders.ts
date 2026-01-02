@@ -35,8 +35,9 @@ export async function createOrder(order: OrderData) {
         let deliveryCharges = 0;
 
         if (order.orderType === 'Dine In') {
-            // For Dine In: Use percentage service charges
-            dispatchAmount = settings.PercentageServiceCharges || 0
+            // For Dine In: Calculate service charges as percentage of net total
+            const pct = Number(settings.PercentageServiceCharges || 0);
+            dispatchAmount = (Number(order.netTotal || 0) * (pct / 100));
         } else if (order.orderType === 'Home Delivery') {
             // For Home Delivery: Use fixed delivery charges
             deliveryCharges = settings.FixDeliveryCharges || 0;
@@ -133,8 +134,9 @@ export async function updateOrder(orderId: number, order: OrderData, currentUser
         let deliveryCharges = 0;
 
         if (order.orderType === 'Dine In') {
-            // For Dine In: Use percentage service charges
-            dispatchAmount = settings.PercentageServiceCharges || 0;
+            // For Dine In: Calculate service charges as percentage of net total
+            const pct = Number(settings.PercentageServiceCharges || 0);
+            dispatchAmount = (Number(order.netTotal || 0) * (pct / 100));
         } else if (order.orderType === 'Home Delivery') {
             // For Home Delivery: Use fixed delivery charges
             deliveryCharges = settings.FixDeliveryCharges || 0;

@@ -38,6 +38,8 @@ function SaleContent() {
     const [customerPhone, setCustomerPhone] = useState('');
     const [deliveryAddress, setDeliveryAddress] = useState('');
     const [isDeliveryOpen, setIsDeliveryOpen] = useState(true);
+    const [deliveryCharge, setDeliveryCharge] = useState<number>(0);
+    const [servicePercent, setServicePercent] = useState<number>(0);
     const [isOrderClosed, setIsOrderClosed] = useState(false);
     const [dialogMessage, setDialogMessage] = useState<string | null>(null);
     const [showDialog, setShowDialog] = useState(false);
@@ -64,6 +66,16 @@ function SaleContent() {
     useEffect(() => {
         fetch('/api/tables').then(r => r.json()).then(setTables).catch(err => console.error(err));
         fetch('/api/categories').then(r => r.json()).then(setCategories).catch(err => console.error(err));
+        // Load app settings (e.g., fixed delivery charges)
+        fetch('/api/settings')
+            .then(r => r.json())
+            .then(s => {
+                const dc = Number(s?.FixDeliveryCharges ?? 0) || 0;
+                const pct = Number(s?.PercentageServiceCharges ?? 0) || 0;
+                setDeliveryCharge(dc);
+                setServicePercent(pct);
+            })
+            .catch(err => console.error('Failed to load settings', err));
     }, []);
 
     // Load order if ID is present
@@ -591,7 +603,7 @@ function SaleContent() {
                             )}
 
                             <div className={(isAdmin || isOwner) ? "" : "opacity-80 pointer-events-none"}>
-                                <Cart items={cart} onQty={onQty} onRemove={onRemove} />
+                                <Cart items={cart} onQty={onQty} onRemove={onRemove} deliveryCharge={deliveryCharge} orderType={orderType} servicePercent={servicePercent} />
                             </div>
 
                             {!isOrderClosed ? (

@@ -42,6 +42,17 @@ export async function generateReceiptHtml(sale: any, items: any[]) {
     logoBase64 = await getImageAsBase64(info.logo);
   }
 
+  // Fetch settings to get percentage service charges (used for labeling)
+  let settings: any = { PercentageServiceCharges: 0, FixDeliveryCharges: 0 };
+  try {
+    const res = await fetch('/api/settings');
+    if (res.ok) settings = await res.json();
+  } catch (err) {
+    // ignore - default values already set
+    console.error('Failed to load settings for receipt:', err);
+  }
+  const pct = Number(settings?.PercentageServiceCharges || 0);
+
   const html = `
     <!DOCTYPE html>
     <html>
@@ -136,7 +147,7 @@ export async function generateReceiptHtml(sale: any, items: any[]) {
         </div>
         ${sale.DispatchAmount && sale.DispatchAmount > 0 ? `
         <div class="total-row">
-          <span>Service Charges</span>
+          <span>Service Charges${sale.OrderType === 'Dine In' && pct ? ` (${pct}%)` : ''}</span>
           <span>${Number(sale.DispatchAmount).toFixed(0)}</span>
         </div>
         ` : ''}

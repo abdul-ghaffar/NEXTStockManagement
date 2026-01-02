@@ -3,8 +3,10 @@ import React from "react";
 
 type CartItem = { id: number; itemName: string; price: number; qty: number };
 
-export default function Cart({ items, onQty, onRemove }: { items: CartItem[]; onQty: (id: number, delta: number) => void; onRemove: (id: number) => void }) {
+export default function Cart({ items, onQty, onRemove, deliveryCharge, orderType, servicePercent }: { items: CartItem[]; onQty: (id: number, delta: number) => void; onRemove: (id: number) => void; deliveryCharge?: number; orderType?: string; servicePercent?: number }) {
     const total = items.reduce((s, i) => s + i.price * i.qty, 0);
+    const serviceAmount = orderType === 'Dine In' ? total * (Number(servicePercent || 0) / 100) : 0;
+    const net = total + serviceAmount + (orderType === 'Home Delivery' ? Number(deliveryCharge || 0) : 0);
     return (
         <div className="flex flex-col gap-3">
             <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -33,10 +35,42 @@ export default function Cart({ items, onQty, onRemove }: { items: CartItem[]; on
             </div>
 
             <div className="pt-2 border-t dark:border-gray-700">
-                <div className="flex justify-between items-center font-bold text-gray-900 dark:text-white">
-                    <span>Total</span>
-                    <span>{total.toFixed(2)}</span>
-                </div>
+                {orderType === 'Home Delivery' ? (
+                    <div className="space-y-2 text-sm">
+                        <div className="flex justify-between text-gray-700 dark:text-gray-300">
+                            <span>Item total:</span>
+                            <span className="font-bold">{total.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-gray-700 dark:text-gray-300">
+                            <span>DC:</span>
+                            <span className="font-bold">{Number(deliveryCharge || 0).toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-gray-900 dark:text-white border-t pt-2 font-bold">
+                            <span>Net total:</span>
+                            <span>{net.toFixed(2)}</span>
+                        </div>
+                    </div>
+                ) : orderType === 'Dine In' ? (
+                    <div className="space-y-2 text-sm">
+                        <div className="flex justify-between text-gray-700 dark:text-gray-300">
+                            <span>Item total:</span>
+                            <span className="font-bold">{total.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-gray-700 dark:text-gray-300">
+                            <span>Service ({Number(servicePercent || 0).toFixed(2)}%):</span>
+                            <span className="font-bold">{serviceAmount.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-gray-900 dark:text-white border-t pt-2 font-bold">
+                            <span>Net total:</span>
+                            <span>{net.toFixed(2)}</span>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="flex justify-between items-center font-bold text-gray-900 dark:text-white">
+                        <span>Total</span>
+                        <span>{total.toFixed(2)}</span>
+                    </div>
+                )}
             </div>
         </div>
     );
