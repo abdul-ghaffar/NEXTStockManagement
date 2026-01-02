@@ -21,6 +21,8 @@ type Sale = {
     DeliveryAddress: string;
     Closed: boolean;
     UserID?: number | null;
+    DispatchAmount?: number;
+    DeliveryCharges?: number;
 };
 
 export default function SalesListPage() {
@@ -395,7 +397,19 @@ export default function SalesListPage() {
                                         )}
                                     </td>
                                     <td className="py-3 px-6 text-right font-bold text-brand-600">
-                                        {typeof sale.TotalAmount === 'number' ? sale.TotalAmount.toFixed(2) : sale.TotalAmount}
+                                        {(() => {
+                                            const itemTotal = Number(sale.TotalAmount || 0);
+                                            const service = Number(sale.DispatchAmount || 0);
+                                            const delivery = Number(sale.DeliveryCharges || 0);
+                                            let charges = 0;
+                                            if (sale.OrderType === 'Home Delivery'){
+                                                charges = delivery;
+                                            } else if (sale.OrderType === 'Dine In' && service > 0) {
+                                                charges = (Number(itemTotal || 0) * (service / 100));;
+                                            }
+                                            const grand = itemTotal + charges;
+                                            return grand.toFixed(2);
+                                        })()}
                                     </td>
                                     <td className="py-3 px-6 text-center">
                                         <div className="flex items-center justify-center gap-2">

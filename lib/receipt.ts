@@ -42,16 +42,12 @@ export async function generateReceiptHtml(sale: any, items: any[]) {
     logoBase64 = await getImageAsBase64(info.logo);
   }
 
-  // Fetch settings to get percentage service charges (used for labeling)
-  let settings: any = { PercentageServiceCharges: 0, FixDeliveryCharges: 0 };
-  try {
-    const res = await fetch('/api/settings');
-    if (res.ok) settings = await res.json();
-  } catch (err) {
-    // ignore - default values already set
-    console.error('Failed to load settings for receipt:', err);
+  let chargesTotal = 0;
+  if (sale.OrderType === 'Dine In' && sale.DispatchAmount > 0) {
+    chargesTotal = (Number(sale.TotalAmount * sale.DispatchAmount / 100));
+  } else if (sale.OrderType === 'Home Delivery' && sale.DeliveryCharges) {
+    chargesTotal = Number(sale.DeliveryCharges);
   }
-  const pct = Number(settings?.PercentageServiceCharges || 0);
 
   const html = `
     <!DOCTYPE html>
@@ -147,21 +143,21 @@ export async function generateReceiptHtml(sale: any, items: any[]) {
         </div>
         ${sale.DispatchAmount && sale.DispatchAmount > 0 ? `
         <div class="total-row">
-          <span>Service Charges${sale.OrderType === 'Dine In' && pct ? ` (${pct}%)` : ''}</span>
-          <span>${Number(sale.DispatchAmount).toFixed(0)}</span>
+          <span>Service Charges${sale.OrderType === 'Dine In' && sale.DispatchAmount ? ` (${sale.DispatchAmount}%)` : ''}</span>
+          <span>${chargesTotal}</span>
         </div>
         ` : ''}
         ${sale.DeliveryCharges && sale.DeliveryCharges > 0 ? `
         <div class="total-row">
           <span>Delivery Charges</span>
-          <span>${Number(sale.DeliveryCharges).toFixed(0)}</span>
+          <span>${chargesTotal}</span>
         </div>
         ` : ''}
         ${(sale.DispatchAmount && sale.DispatchAmount > 0) || (sale.DeliveryCharges && sale.DeliveryCharges > 0) ? `
         <div class="divider"></div>
         <div class="total-row font-bold">
           <span>Grand Total</span>
-          <span>${(Number(sale.TotalAmount) + Number(sale.DispatchAmount || 0) + Number(sale.DeliveryCharges || 0)).toFixed(0)}</span>
+          <span>${(Number(sale.TotalAmount) + chargesTotal).toFixed(0)}</span>
         </div>
         ` : ''}
       </div>

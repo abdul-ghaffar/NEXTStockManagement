@@ -35,9 +35,9 @@ export async function createOrder(order: OrderData) {
         let deliveryCharges = 0;
 
         if (order.orderType === 'Dine In') {
-            // For Dine In: Calculate service charges as percentage of net total
+            // For Dine In: Use percentage service charges
             const pct = Number(settings.PercentageServiceCharges || 0);
-            dispatchAmount = (Number(order.netTotal || 0) * (pct / 100));
+            dispatchAmount = pct;
         } else if (order.orderType === 'Home Delivery') {
             // For Home Delivery: Use fixed delivery charges
             deliveryCharges = settings.FixDeliveryCharges || 0;
@@ -134,9 +134,9 @@ export async function updateOrder(orderId: number, order: OrderData, currentUser
         let deliveryCharges = 0;
 
         if (order.orderType === 'Dine In') {
-            // For Dine In: Calculate service charges as percentage of net total
+            // For Dine In: Use percentage service charges
             const pct = Number(settings.PercentageServiceCharges || 0);
-            dispatchAmount = (Number(order.netTotal || 0) * (pct / 100));
+            dispatchAmount = pct;
         } else if (order.orderType === 'Home Delivery') {
             // For Home Delivery: Use fixed delivery charges
             deliveryCharges = settings.FixDeliveryCharges || 0;
@@ -250,7 +250,7 @@ export async function getSales(page: number = 1, limit: number = 10, searchId?: 
     const offset = (page - 1) * limit;
 
     let query = `
-        SELECT [ID], [ClientName], [SaleDate], [TotalAmount], [OrderType], [PhoneNo], [DeliveryAddress], [Closed], [UserID]
+        SELECT [ID], [ClientName], [SaleDate], [TotalAmount], [OrderType], [PhoneNo], [DeliveryAddress], [DispatchAmount], [DeliveryCharges], [Closed], [UserID]
         FROM [dbo].[Sale]
         WHERE 1=1
     `;
