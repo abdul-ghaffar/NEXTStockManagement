@@ -225,14 +225,7 @@ export default function SalesListPage() {
 
             const html = await generateReceiptHtml(data.sale, data.items);
 
-            if (window.api && window.api.printOrder) {
-                const result = await window.api.printOrder(html);
-                if (result.success) {
-                    toast.success(`Printing order #${sale.ID}...`);
-                } else {
-                    toast.error(`Print failed: ${result.error}`);
-                }
-            } else {
+            if (typeof window !== 'undefined' && window.open) {
                 const printWindow = window.open('', '_blank');
                 if (printWindow) {
                     printWindow.document.write(html);

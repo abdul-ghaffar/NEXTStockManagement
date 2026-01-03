@@ -12,18 +12,10 @@ const NetworkAccess: React.FC = () => {
     const fetchUrl = async () => {
         setIsLoading(true);
         try {
-            // Priority 1: Electron Bridge
-            if (typeof window !== "undefined" && window.api && window.api.getNetworkUrl) {
-                const url = await window.api.getNetworkUrl();
-                setNetworkUrl(url);
-            } else {
-                // Priority 2: API Fallback (Browser)
-                const response = await fetch("/api/network-url");
-                const data = await response.json();
-                if (data.url) {
-                    setNetworkUrl(data.url);
-                }
-            }
+            // Browser-only: fetch network url from API
+            const response = await fetch("/api/network-url");
+            const data = await response.json();
+            if (data.url) setNetworkUrl(data.url);
         } catch (error) {
             console.error("Failed to fetch network URL:", error);
         } finally {
