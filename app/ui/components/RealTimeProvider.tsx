@@ -57,7 +57,7 @@ export const RealTimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             if (type === "ORDER_CREATED") {
                 const orderInfo = data.type === 'Dine In' ? `table: ${data.tableName}` : data.type;
                 toast.success(
-                    <div className="cursor-pointer" onClick={() => router.push(`/order-management/sale?id=${data.orderId}&expanded=true`)}>
+                    <div className="cursor-pointer" onClick={() => router.push(`/sale/details?id=${data.orderId}&expanded=true`)}>
                         <div className="font-bold underline decoration-2 underline-offset-2">New Order #{data.orderId}</div>
                         <div className="text-sm mt-1">{orderInfo}, amt: {data.amount}</div>
                     </div>,
@@ -68,7 +68,7 @@ export const RealTimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                 );
             } else if (type === "ORDER_UPDATED") {
                 toast.info(
-                    <div className="cursor-pointer" onClick={() => router.push(`/order-management/sale?id=${data.orderId}&expanded=true`)}>
+                    <div className="cursor-pointer" onClick={() => router.push(`/sale/details?id=${data.orderId}&expanded=true`)}>
                         <div className="font-bold underline decoration-2 underline-offset-2">Order Updated #{data.orderId}</div>
                         <div className="text-sm mt-1">New amount: {data.amount}</div>
                     </div>,
@@ -79,7 +79,7 @@ export const RealTimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                 );
             } else if (type === "ORDER_CLOSED") {
                 toast.warn(
-                    <div className="cursor-pointer" onClick={() => router.push(`/order-management/sale?id=${data.orderId}&expanded=true`)}>
+                    <div className="cursor-pointer" onClick={() => router.push(`/sale/details?id=${data.orderId}&expanded=true`)}>
                         <div className="font-bold underline decoration-2 underline-offset-2">Order Closed #{data.orderId}</div>
                         <div className="text-sm mt-1">Closed by {data.user}</div>
                     </div>,
